@@ -6,43 +6,45 @@ STATS_manualtime = 300          'manual run time in seconds
 STATS_denomination = "C"        'C is for each case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("11/13/2017", "Updated sponsor income standards for 2017.", "DHS")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'DIALOGS--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-BeginDialog sponsor_income_calculation_dialog, 0, 0, 216, 165, "Sponsor income calculation dialog"
+BeginDialog sponsor_income_calculation_dialog, 0, 0, 225, 200, "Sponsor income calculation dialog"
   EditBox 65, 10, 70, 15, MAXIS_case_number
   EditBox 40, 45, 55, 15, primary_sponsor_earned_income
   EditBox 150, 45, 55, 15, spousal_sponsor_earned_income
   EditBox 40, 80, 55, 15, primary_sponsor_unearned_income
   EditBox 150, 80, 55, 15, spousal_sponsor_unearned_income
-  EditBox 70, 105, 30, 15, sponsor_HH_size
-  EditBox 120, 125, 30, 15, number_of_sponsored_immigrants
-  EditBox 70, 145, 80, 15, worker_signature
+  EditBox 70, 115, 30, 15, sponsor_HH_size
+  EditBox 130, 135, 30, 15, number_of_sponsored_immigrants
+  EditBox 70, 170, 80, 15, worker_signature
   ButtonGroup ButtonPressed
-    OkButton 160, 125, 50, 15
-    CancelButton 160, 145, 50, 15
+    OkButton 170, 170, 50, 15
+    CancelButton 170, 185, 50, 15
   Text 10, 15, 50, 10, "Case number:"
   GroupBox 5, 35, 205, 30, "Earned income to deem:"
   Text 10, 50, 30, 10, "Primary:"
@@ -50,10 +52,12 @@ BeginDialog sponsor_income_calculation_dialog, 0, 0, 216, 165, "Sponsor income c
   GroupBox 5, 70, 205, 30, "Unearned income to deem:"
   Text 10, 85, 30, 10, "Primary:"
   Text 120, 85, 30, 10, "Spousal:"
-  Text 5, 110, 60, 10, "Sponsor HH size:"
-  Text 5, 130, 115, 10, "Number of sponsored immigrants:"
-  Text 5, 150, 65, 10, "Worker signature:"
+  GroupBox 5, 105, 205, 60, "Enter sizes greater than zero:"
+  Text 10, 120, 60, 10, "Sponsor HH size:"
+  Text 10, 140, 115, 10, "Number of sponsored immigrants:"
+  Text 5, 170, 65, 10, "Worker signature:"
 EndDialog
+
 
 'THE SCRIPT--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 'Connecting to BlueZone, and finding case number
@@ -70,26 +74,26 @@ Do
 					If ButtonPressed = 0 then stopscript
 					If isnumeric(MAXIS_case_number) = False or len(MAXIS_case_number) > 8 then MsgBox "You must enter a valid case number."
 				Loop until isnumeric(MAXIS_case_number) = True and len(MAXIS_case_number) <= 8
-				If isnumeric(primary_sponsor_earned_income) = False and isnumeric(spousal_sponsor_earned_income) = False and isnumeric(primary_sponsor_unearned_income) = False and isnumeric(spousal_sponsor_unearned_income) = False then MsgBox "You must enter some income. You can enter a ''0'' if that is accurate."
+			If isnumeric(primary_sponsor_earned_income) = False and isnumeric(spousal_sponsor_earned_income) = False and isnumeric(primary_sponsor_unearned_income) = False and isnumeric(spousal_sponsor_unearned_income) = False then MsgBox "You must enter some income. You can enter a ''0'' if that is accurate."
 			Loop until isnumeric(primary_sponsor_earned_income) = True or isnumeric(spousal_sponsor_earned_income) = True or isnumeric(primary_sponsor_unearned_income) = True or isnumeric(spousal_sponsor_unearned_income) = True
-			If isnumeric(sponsor_HH_size) = False then MsgBox "You must enter a sponsor HH size."
-		Loop until isnumeric(sponsor_HH_size) = True
-		If isnumeric(number_of_sponsored_immigrants) = False then MsgBox "You must enter the number of sponsored immigrants."
-    Loop until isnumeric(number_of_sponsored_immigrants) = True
-	If worker_signature = "" then MsgBox "You must sign your case note!"
+		If isnumeric(sponsor_HH_size) = False then script_end_procedure("You must enter a sponsor HH size, greater than zero. The script will end now.")
+		Loop until isnumeric(sponsor_HH_size) = True and sponsor_HH_size > 0
+    If isnumeric(number_of_sponsored_immigrants) = False then script_end_procedure("You must enter the number of sponsored immigrants greater than zero. The script will end now.")
+    Loop until isnumeric(number_of_sponsored_immigrants) = True and number_of_sponsored_immigrants > 0
+If worker_signature = "" then MsgBox "You must sign your case note!"
 Loop until worker_signature <> ""
 
 'Determines the income limits
 ' >> Income limits from CM 19.06
-If sponsor_HH_size = 1 then income_limit = 1276
-If sponsor_HH_size = 2 then income_limit = 1726
-If sponsor_HH_size = 3 then income_limit = 2177
-If sponsor_HH_size = 4 then income_limit = 2628
-If sponsor_HH_size = 5 then income_limit = 3078
-If sponsor_HH_size = 6 then income_limit = 3529
-If sponsor_HH_size = 7 then income_limit = 3980
-If sponsor_HH_size = 8 then income_limit = 4430
-If sponsor_HH_size > 8 then income_limit = 4430 + (451 * (sponsor_HH_size - 8))
+If sponsor_HH_size = 1 then income_limit = 1307
+If sponsor_HH_size = 2 then income_limit = 1760
+If sponsor_HH_size = 3 then income_limit = 2213
+If sponsor_HH_size = 4 then income_limit = 2665
+If sponsor_HH_size = 5 then income_limit = 3118
+If sponsor_HH_size = 6 then income_limit = 3571
+If sponsor_HH_size = 7 then income_limit = 4024
+If sponsor_HH_size = 8 then income_limit = 4477
+If sponsor_HH_size > 8 then income_limit = 4477 + (453 * (sponsor_HH_size - 8))
 
 'If any income variables are not numeric, the script will convert them to a "0" for calculating
 If IsNumeric(primary_sponsor_earned_income) = False then primary_sponsor_earned_income = 0

@@ -185,21 +185,22 @@ BeginDialog CAF_dialog_03, 0, 0, 451, 405, "CAF dialog part 3"
   EditBox 390, 105, 55, 15, retro_request
   EditBox 180, 130, 265, 15, reason_expedited_wasnt_processed
   EditBox 100, 150, 345, 15, FIAT_reasons
-  CheckBox 15, 190, 80, 10, "Application signed?", application_signed_checkbox
-  CheckBox 15, 205, 65, 10, "Appt letter sent?", appt_letter_sent_checkbox
-  CheckBox 15, 220, 150, 10, "Client willing to participate with E and T", E_and_T_checkbox
-  CheckBox 15, 235, 70, 10, "EBT referral sent?", EBT_referral_checkbox
-  CheckBox 115, 190, 50, 10, "eDRS sent?", eDRS_sent_checkbox
-  CheckBox 115, 205, 50, 10, "Expedited?", expedited_checkbox
-  CheckBox 115, 235, 70, 10, "IAAs/OMB given?", IAA_checkbox
-  CheckBox 200, 190, 115, 10, "Informed client of recert period?", recert_period_checkbox
-  CheckBox 200, 205, 80, 10, "Intake packet given?", intake_packet_checkbox
-  CheckBox 200, 220, 105, 10, "Managed care packet sent?", managed_care_packet_checkbox
-  CheckBox 200, 235, 105, 10, "Managed care referral made?", managed_care_referral_checkbox
-  CheckBox 345, 190, 65, 10, "R/R explained?", R_R_checkbox
-  CheckBox 345, 205, 85, 10, "Sent forms to AREP?", Sent_arep_checkbox
-  CheckBox 345, 220, 65, 10, "Updated MMIS?", updated_MMIS_checkbox
-  CheckBox 345, 235, 95, 10, "Workforce referral made?", WF1_checkbox
+  CheckBox 15, 180, 80, 10, "Application signed?", application_signed_checkbox
+  CheckBox 15, 195, 65, 10, "Appt letter sent?", appt_letter_sent_checkbox
+  CheckBox 15, 210, 150, 10, "Client willing to participate with E and T", E_and_T_checkbox
+  CheckBox 15, 225, 70, 10, "EBT referral sent?", EBT_referral_checkbox
+  CheckBox 115, 180, 50, 10, "eDRS sent?", eDRS_sent_checkbox
+  CheckBox 115, 195, 50, 10, "Expedited?", expedited_checkbox
+  CheckBox 115, 225, 70, 10, "IAAs/OMB given?", IAA_checkbox
+  CheckBox 200, 180, 115, 10, "Informed client of recert period?", recert_period_checkbox
+  CheckBox 200, 195, 80, 10, "Intake packet given?", intake_packet_checkbox
+  CheckBox 200, 210, 105, 10, "Managed care packet sent?", managed_care_packet_checkbox
+  CheckBox 200, 225, 105, 10, "Managed care referral made?", managed_care_referral_checkbox
+  CheckBox 345, 180, 65, 10, "R/R explained?", R_R_checkbox
+  CheckBox 345, 195, 85, 10, "Sent forms to AREP?", Sent_arep_checkbox
+  CheckBox 345, 210, 65, 10, "Updated MMIS?", updated_MMIS_checkbox
+  CheckBox 345, 225, 95, 10, "Workforce referral made?", WF1_checkbox
+  CheckBox 15, 240, 185, 10, "Verbal and written work rules requirements completed?", work_rules_checkbox 
   EditBox 55, 260, 230, 15, other_notes
   EditBox 55, 280, 390, 15, verifs_needed
   EditBox 55, 300, 390, 15, actions_taken
@@ -233,7 +234,7 @@ BeginDialog CAF_dialog_03, 0, 0, 451, 405, "CAF dialog part 3"
     PushButton 5, 110, 25, 10, "FMED:", FMED_button
   Text 5, 135, 170, 10, "Reason expedited wasn't processed (if applicable):"
   Text 5, 155, 95, 10, "FIAT reasons (if applicable):"
-  GroupBox 5, 175, 440, 75, "Common elements workers should case note:"
+  GroupBox 5, 170, 440, 85, "Common elements workers should case note:"
   Text 5, 265, 50, 10, "Other notes:"
   Text 290, 265, 40, 10, "CAF status:"
   Text 5, 285, 50, 10, "Verifs needed:"
@@ -273,6 +274,7 @@ EMConnect ""
 get_county_code				'since there is a county specific checkbox, this makes the the county clear
 Call MAXIS_case_number_finder(MAXIS_case_number)
 Call MAXIS_footer_finder(MAXIS_footer_month, MAXIS_footer_year)
+
 
 'initial dialog
 Do
@@ -418,6 +420,8 @@ Do
 					If income_note_error_msg = True THEN err_msg = err_msg & VbCr & "Income for this case was found in MAXIS. Please complete the 'notes on income and budget' field."
 					If worker_signature = "" THEN err_msg = err_msg & vbCr & "Please enter a worker signature."
 					If CAF_status = " " THEN err_msg = err_msg & vbCr & "Please select a CAF Status."
+					If R_R_checkbox <> checked THEN err_msg = err_msg & vbCr &_
+						"Please go over the Rights and Responsibilities information with your client before continuing."
 					If err_msg <> "" THEN Msgbox err_msg
 				Loop until (ButtonPressed = -1 and err_msg = "") or (ButtonPressed = previous_to_page_02_button and err_msg = "")		'If OK or PREV, it exits the loop here, which is weird because the above also causes it to exit
 			Loop until ButtonPressed = -1	'Because this is in here a second time, it triggers a return to the "Dialog CAF_dialog_02" line, where all those "DOs" start again!!!!!
@@ -591,6 +595,7 @@ IF managed_care_referral_checkbox = checked THEN CALL write_variable_in_CASE_NOT
 IF R_R_checkbox = checked THEN CALL write_variable_in_CASE_NOTE("* R/R explained to client.")
 IF updated_MMIS_checkbox = checked THEN CALL write_variable_in_CASE_NOTE("* Updated MMIS.")
 IF WF1_checkbox = checked THEN CALL write_variable_in_CASE_NOTE("* Workforce referral made.")
+IF work_rules_checkbox = checked THEN CALL write_variable_in_CASE_NOTE("* Verbal and written work rules completed.")
 IF Sent_arep_checkbox = checked THEN CALL write_variable_in_CASE_NOTE("* Sent form(s) to AREP.")
 IF E_and_T_checkbox = checked THEN CALL write_variable_in_CASE_NOTE("* Client is willing to participate with E&T.")
 IF recert_period_checkbox = checked THEN call write_variable_in_CASE_NOTE("* Informed client of recert period.")

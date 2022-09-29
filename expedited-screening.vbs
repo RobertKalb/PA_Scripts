@@ -1,33 +1,35 @@
 'Required for statistical purposes==========================================================================================
-'name_of_script = "NOTES - EXPEDITED SCREENING.vbs"
-'start_time = timer
-'STATS_counter = 1               'sets the stats counter at one
-'STATS_manualtime = 180          'manual run time in seconds
-'STATS_denomination = "C"        'C is for each case
+name_of_script = "NOTES - EXPEDITED SCREENING.vbs"
+start_time = timer
+STATS_counter = 1               'sets the stats counter at one
+STATS_manualtime = 180          'manual run time in seconds
+STATS_denomination = "C"        'C is for each case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if (func_lib_run <> true OR IsEmpty(FuncLib_URL) = TRUE) then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_funclib = CreateObject("Scripting.FileSystemObject")
-	Set fso_funclib_command = run_funclib.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_funclib_command.ReadAll
-	fso_funclib_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
 'CHANGELOG BLOCK ===========================================================================================================
-'Starts by defining a changelog array
-'changelog = array()
-
-'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-'call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-
-'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-'changelog_display
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("11/13/2017", "Updated utility standards effective 10/01/2017", "DHS")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
 'END CHANGELOG BLOCK =======================================================================================================
 
 'DIALOGS----------------------------------------------------------------------------------------------------
@@ -55,33 +57,10 @@ BeginDialog exp_screening_dialog, 0, 0, 181, 210, "Expedited Screening Dialog"
   GroupBox 0, 170, 175, 30, "**IMPORTANT**"
 EndDialog
 
-'DATE BASED LOGIC FOR UTILITY AMOUNTS------------------------------------------------------------------------------------------
-If application_date >= cdate("10/01/2020") then     'these variables need to change every October per CM.18.15.09
-    heat_AC_amt = 496
-    electric_amt = 154
-    phone_amt = 56
-ElseIf application_date >= cdate("10/01/2019") then
-    'October 2019 amounts 
-    heat_AC_amt = 490
-    electric_amt = 143
-    phone_amt = 49
-elseIf date >= cdate("10/01/2018") then
-	heat_AC_amt = 493
-	electric_amt = 126
-	phone_amt = 47
-ElseIf date >= cdate("10/01/2017") then 
-	heat_AC_amt = 536
-	electric_amt = 172
-	phone_amt = 41
-ElseIf date >= cdate("10/01/2016") then			'these variables need to change every October
-	heat_AC_amt = 532
-	electric_amt = 141
-	phone_amt = 38
-Else
-	heat_AC_amt = 454
-	electric_amt = 141
-	phone_amt = 38
-End if
+'UTILITY AMOUNTS (UPDATE IN SETTINGS - GLOBAL VARIABLES--------------------------------------------------------
+heat_AC_amt = glob_heat_AC_amt
+electric_amt = glob_electric_amt
+phone_amt = glob_phone_amt
 
 'THE SCRIPT----------------------------------------------------------------------------------------------------
 'Connecting to BlueZone
@@ -89,30 +68,21 @@ EMConnect ""
 'It will search for a case number.
 call MAXIS_case_number_finder(MAXIS_case_number)
 
-dim confirm_cancel
-
 'Shows the dialog
 Do
 	Do
 		Do
 			Dialog exp_screening_dialog
-			if ButtonPressed = 0 then 
-				confirm_cancel = MsgBox ("Are you sure you want to cancel? Press YES to return to the previous script. Press NO to continue.", vbYesNo)
-				if confirm_cancel = vbYes THEN exit do
-			end if
+			cancel_confirmation
 			If isnumeric(MAXIS_case_number) = False then MsgBox "You must enter a valid case number."
 		Loop until isnumeric(MAXIS_case_number) = True
-		if confirm_cancel = vbYes THEN exit do
 		If (income <> "" and isnumeric(income) = false) or (assets <> "" and isnumeric(assets) = false) or (rent <> "" and isnumeric(rent) = false) then MsgBox "The income/assets/rent fields must be numeric only. Do not put letters or symbols in these sections."
 	Loop until (income = "" or isnumeric(income) = True) and (assets = "" or isnumeric(assets) = True) and(rent = "" or isnumeric(rent) = True)
-	if confirm_cancel = vbYes then exit do
 	If worker_signature = "" then MsgBox "You must sign your case note."
 Loop until worker_signature <> ""
 
-if confirm_cancel <> vbYes THEN 
-
-	'checking for an active MAXIS session
-	Call check_for_MAXIS(FALSE)
+'checking for an active MAXIS session
+Call check_for_MAXIS(FALSE)
 
 'LOGIC AND CALCULATIONS----------------------------------------------------------------------------------------------------
 'Logic for figuring out utils. The highest priority for the if...then is heat/AC, followed by electric and phone, followed by phone and electric separately.
@@ -130,9 +100,9 @@ End if
 If phone_check = unchecked and electric_check = unchecked and heat_AC_check = unchecked then utilities = 0
 
 'If nothing is written for income/assets/rent info, we set to zero.
-If trim(income) = "" then income = 0
-If trim(assets) = "" then assets = 0
-If trim(rent) = "" then rent = 0
+If income = "" then income = 0
+If assets = "" then assets = 0
+If rent = "" then rent = 0
 
 'Calculates expedited status based on above numbers
 If (int(income) < 150 and int(assets) <= 100) or ((int(income) + int(assets)) < (int(rent) + cint(utilities))) then expedited_status = "client appears expedited"
@@ -190,6 +160,4 @@ END IF
 			MsgBox "This client does not appear expedited. A same day interview does not need to be offered."
 		End if
 	End if
-
-end if
-'script_end_procedure("")
+script_end_procedure("")

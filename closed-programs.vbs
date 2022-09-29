@@ -6,30 +6,32 @@ STATS_manualtime = 420           'manual run time in seconds
 STATS_denomination = "C"        'C is for each case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("01/11/2017", "Added ABAWD/Banked Months information field to be completed when users are closing SNAP. Hennepin users only: Added option to send probate information via SPEC/MEMO if a HC notice is not found.", "Ilse Ferris, Hennepin County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("1/2/2018", "Fixing bug that prevented the script from writing SPEC/MEMO due to MAXIS updates.", "Casey Love, Ramsey County")
+'("01/11/2017", "Added ABAWD/Banked Months information field to be completed when users are closing SNAP. Hennepin users only: Added option to send probate information via SPEC/MEMO if a HC notice is not found.", "Ilse Ferris, Hennepin County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'Checks for county info from global variables, or asks if it is not already defined.
 get_county_code
@@ -94,19 +96,19 @@ HC_check = 0
 'Autofills case number
 call MAXIS_case_number_finder(MAXIS_case_number)
 
-'Dialog starts: includes nav button for SPEC/WCOM, validates the date of closure, confirms that date of closure is last day of a month, checks that a program was selected for closure, and navigates to CASE/NOTE 
+'Dialog starts: includes nav button for SPEC/WCOM, validates the date of closure, confirms that date of closure is last day of a month, checks that a program was selected for closure, and navigates to CASE/NOTE
 DO
 	DO
 		err_msg = ""		'establishing value of varaible, this is necessary for the Do...LOOP
-		DO	
-			Do 
+		DO
+			Do
 				Dialog closed_dialog
 				cancel_confirmation
 				If ButtonPressed = SPEC_WCOM_button then call navigate_to_MAXIS_screen("spec", "wcom")
 				If ButtonPressed = HC_EPM_Button then CreateObject("WScript.Shell").Run("http://hcopub.dhs.state.mn.us/epm/#t=index_1.htm")
-			Loop until ButtonPressed = -1 							
-			If isdate(closure_date) = False THEN msgbox "* Enter a valid date of closure (MM/DD/YYYY)."	'This condition is here instead of in the next do loop 
-		Loop until isdate(closure_date) = True 
+			Loop until ButtonPressed = -1
+			If isdate(closure_date) = False THEN msgbox "* Enter a valid date of closure (MM/DD/YYYY)."	'This condition is here instead of in the next do loop
+		Loop until isdate(closure_date) = True
 		If datepart("d", dateadd("d", 1, closure_date)) <> 1 THEN err_msg = err_msg & vbNewline & "* Enter the last date of eligibility, which for an open case, should be the last day of the month. If this is a denial, use the denial script."
 		IF (death_check = 1 AND isdate(hc_close_for_death_date) = FALSE) THEN err_msg = err_msg & vbNewline & "* Enter the client's date of death."
 		IF (death_check <> 1 AND hc_close_for_death_date <> "") THEN err_msg = err_msg & vbNewline & "* Check the box for client death, remove the client's date of death."
@@ -125,7 +127,7 @@ Call check_for_MAXIS(False)
 'WCOM informing users that they may be subject to probate claims for their HC case
 IF worker_county_code = "x127" THEN
 	IF (HC_check = 1 AND death_check = 1) THEN
-		
+
         CALL navigate_to_MAXIS_screen("SPEC", "WCOM")
         Emwritescreen "Y", 3, 74  'sorts by HC notices
         Transmit
@@ -141,7 +143,7 @@ IF worker_county_code = "x127" THEN
 					'transmitting and putting wcom into edit mode
 					Transmit
 					PF9
-					
+
 					'Worker Comment Input
 					Call write_variable_in_spec_memo("************************************************************")
 					call write_variable_in_spec_memo("Medical Assistance eligibility ends on: " & hc_close_for_death_date & ".")
@@ -153,7 +155,7 @@ IF worker_county_code = "x127" THEN
 					Hennepin_probate_notes = "* Added Hennepin County probate information to the client's notice."
         			exit Do
         		End If
-        	End If 
+        	End If
         	If wcom_row = 17 then
         		PF8
         		Emreadscreen spec_edit_check, 6, 24, 2
@@ -161,47 +163,21 @@ IF worker_county_code = "x127" THEN
         	end if
         	If spec_edit_check = "NOTICE" THEN no_hc_waiting = true
         Loop until spec_edit_check = "NOTICE"
-        
+
         ' If no notice was found then we give the option to write the message in a SPEC MEMO instead
         If no_hc_waiting = true then
             swap_to_memo = msgbox ("No waiting HC results were found for the requested month. Would you like to send MEMO in place of WCOM?", vbYesNo)  'fancy message box with yes/no
-        End if 
-		
+        End if
+
         'based on output of fancy message box we either end the script or write the WCOM
-        IF swap_to_memo = vbNo THEN 
+        IF swap_to_memo = vbNo THEN
 			Hennepin_probate_notes = "* Hennepin County probate information was not added to the client's notice."
 			msgbox "Information about Hennepin County's probate information has not been sent to the client/family."
-		END IF 
-		
+		END IF
+
         IF swap_to_memo = vbYes THEN
-        	CALL navigate_to_MAXIS_screen("SPEC","MEMO")
-        	PF5
-        	'Checking for an AREP. If there's an AREP it'll navigate to STAT/AREP, check to see if the forms go to the AREP. If they do, it'll write X's in those fields below.
-        	row = 4                             'Defining row and col for the search feature.
-        	col = 1
-        	EMSearch "ALTREP", row, col         'Row and col are variables which change from their above declarations if "ALTREP" string is found.
-        	IF row > 4 THEN                     'If it isn't 4, that means it was found.
-        		arep_row = row                                          'Logs the row it found the ALTREP string as arep_row
-        		call navigate_to_MAXIS_screen("STAT", "AREP")           'Navigates to STAT/AREP to check and see if forms go to the AREP
-        		EMReadscreen forms_to_arep, 1, 10, 45                   'Reads for the "Forms to AREP?" Y/N response on the panel.
-        		call navigate_to_MAXIS_screen("SPEC", "MEMO")           'Navigates back to SPEC/MEMO
-        		PF5                                                     'PF5s again to initiate the new memo process
-        	END IF
-        	'Checking for SWKR
-        	row = 4                             'Defining row and col for the search feature.
-        	col = 1
-        	EMSearch "SOCWKR", row, col         'Row and col are variables which change from their above declarations if "SOCWKR" string is found.
-        	IF row > 4 THEN                     'If it isn't 4, that means it was found.
-        		swkr_row = row                                          'Logs the row it found the SOCWKR string as swkr_row
-        		call navigate_to_MAXIS_screen("STAT", "SWKR")         'Navigates to STAT/SWKR to check and see if forms go to the SWKR
-        		EMReadscreen forms_to_swkr, 1, 15, 63                'Reads for the "Forms to SWKR?" Y/N response on the panel.
-        		call navigate_to_MAXIS_screen("SPEC", "MEMO")         'Navigates back to SPEC/MEMO
-        		PF5                                           'PF5s again to initiate the new memo process
-        	END IF
-        	EMWriteScreen "x", 5, 10                                        'Initiates new memo to client
-        	IF forms_to_arep = "Y" THEN EMWriteScreen "x", arep_row, 10     'If forms_to_arep was "Y" (see above) it puts an X on the row ALTREP was found.
-        	IF forms_to_swkr = "Y" THEN EMWriteScreen "x", swkr_row, 10     'If forms_to_arep was "Y" (see above) it puts an X on the row ALTREP was found.
-        	transmit
+			start_a_new_spec_memo
+
 			'Worker Comment Input
 	  	  	Call write_variable_in_spec_memo("************************************************************")
 	  	  	call write_variable_in_spec_memo("Medical Assistance eligibility ends on: " & hc_close_for_death_date & ".")
@@ -210,9 +186,9 @@ IF worker_county_code = "x127" THEN
 	  	  	Call write_variable_in_spec_memo("************************************************************")
             PF4
 			Hennepin_probate_notes = "* Added Hennepin County probate information to a SPEC/MEMO."
-        End if 
-	End if 
-End if 
+        End if
+	End if
+End if
 '******END OF HENNEPIN COUNTY SPECIFIC INFORMATION*********
 
 'LOGIC and calculations----------------------------------------------------------------------------------------------------
@@ -323,4 +299,4 @@ call write_variable_in_case_note("---")
 call write_variable_in_case_note(worker_signature)
 
 'Script end procedure
-script_end_procedure("Success! Please remember to check the generated notice to make sure it reads correctly. If not please add WCOMs to make notice read correctly." & vbnewline & vbnewline & "This script does not case note information related to HC REIN dates due to the ever changing nature of these programs at this time. For more information please refer to the IAPM or HCPM, both are buttons available on the powerpad.")
+script_end_procedure("Success! Please remember to check the generated notice to make sure it reads correctly. If not please add WCOMs to make notice read correctly." & vbnewline & vbnewline & " For more information, Please refer to the IAPM or EPM.")

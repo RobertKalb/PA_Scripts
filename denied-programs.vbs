@@ -6,29 +6,31 @@ STATS_manualtime = 420          'manual run time in seconds
 STATS_denomination = "C"        'C is for each case
 'END OF stats block=========================================================================================================
 
-''Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("04/04/2017", "Added handling for multiple recipient changes to SPEC/WCOM", "David Courtright, St Louis County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'VARIABLE REQUIRED TO RESIZE DIALOG BASED ON A GLOBAL VARIABLE IN FUNCTIONS FILE
 If case_noting_intake_dates = False then dialog_shrink_amt = 100
@@ -179,7 +181,7 @@ BeginDialog denied_dialog, 0, 0, 401, 385 - dialog_shrink_amt, "Denied progs dia
   EditBox 50, 170, 345, 15, other_notes
   If case_noting_intake_dates = True then
     CheckBox 15, 200, 360, 10, "Check here if requested proofs were not provided, interview was completed (if applicable) and this case pended", requested_proofs_not_provided_check
-    CheckBox 15, 225, 365, 10, "Denied SNAP for self-declaration of income over 165% FPG (hold for 30 days, with an add'l 30 for proration)", self_declaration_of_income_over_165_FPG
+'    CheckBox 15, 225, 365, 10, "Denied SNAP for self-declaration of income over 165% FPG (hold for 30 days, with an add'l 30 for proration)", self_declaration_of_income_over_165_FPG
     CheckBox 15, 245, 130, 10, "Client is disabled (60 day HC period)", disabled_client_check
     CheckBox 15, 260, 305, 10, "Check here if there are any programs still open/pending (doesn't become intake again yet)", open_prog_check
     EditBox 105, 275, 235, 15, open_progs
@@ -307,15 +309,15 @@ If HC_check = 1 then
   End if
   progs_denied = progs_denied & "HC/"
   If HH_membs_on_HC_check = 1 then
-    HC_last_REIN_date = HC_intake_date & ", new HCAPP not required if other membs are open on HC."
+    HC_last_REIN_date = dateadd("d", application_date, 60) & ", new HCAPP not required if other membs are open on HC."
   Else
-    HC_last_REIN_date = HC_intake_date & ", after which a new HCAPP is required."
+    HC_last_REIN_date = dateadd("d", application_date, 60) & ", after which a new HCAPP is required."
   End if
 End if
 If SNAP_check = 1 then
   If withdraw_pnd2_SNAP_checkbox = checked Then
-	SNAP_intake_date = dateadd("d", SNAP_denial_date, 10)
-  ElseIf requested_proofs_not_provided_check = 0 and self_declaration_of_income_over_165_FPG = 0 then
+	SNAP_intake_date = dateadd("d", application_date, 45)
+  ElseIf requested_proofs_not_provided_check = 0 then
     SNAP_intake_date = SNAP_denial_date
   ElseIf dateadd("d", SNAP_denial_date, 10) > dateadd("d", application_date, 60) then
     SNAP_intake_date = dateadd("d", SNAP_denial_date, 10)
@@ -323,7 +325,7 @@ If SNAP_check = 1 then
     SNAP_intake_date = dateadd("d", application_date, 60)
   End if
   progs_denied = progs_denied & "SNAP/"
-  SNAP_last_REIN_date = SNAP_intake_date & ", after which a new CAF is required."
+  SNAP_last_REIN_date = dateadd("d", application_date, 60) & ", after which a new CAF is required."
 End if
 If cash_check = 1 then
   If withdraw_pnd2_CASH_checkbox = checked Then
@@ -379,6 +381,12 @@ If emer_intake_date > intake_date and emer_check = 1 then intake_date = emer_int
 'This section edits the notices if requested.
 
 IF edit_notice_check = 1 THEN
+	'This section will check for whether forms go to AREP and SWKR
+	call navigate_to_MAXIS_screen("STAT", "AREP")           'Navigates to STAT/AREP to check and see if forms go to the AREP
+	EMReadscreen forms_to_arep, 1, 10, 45
+	call navigate_to_MAXIS_screen("STAT", "SWKR")         'Navigates to STAT/SWKR to check and see if forms go to the SWKR
+	EMReadscreen forms_to_swkr, 1, 15, 63
+
 	notice_edited = false 'Resetting this variable
 	call navigate_to_MAXIS_screen("SPEC", "WCOM")
 	notice_month = DatePart("m", application_date) 'Entering the benefit month to find notices
@@ -411,6 +419,19 @@ IF edit_notice_check = 1 THEN
 			LOOP UNTIL notice_row > 1 OR document_end <> "   "
 			IF notice_row > 1 THEN	'This means the word "proofs" is contained in the notice, and it should be edited
 				PF9
+				'The script is now on the recipient selection screen.  Mark all recipients that need NOTICES
+				row = 4                             'Defining row and col for the search feature.
+				col = 1
+				EMSearch "ALTREP", row, col         'Row and col are variables which change from their above declarations if "ALTREP" string is found.
+				IF row > 4 THEN  arep_row = row  'locating ALTREP location if it exists'
+				row = 4                             'reset row and col for the next search
+				col = 1
+				EMSearch "SOCWKR", row, col
+				IF row > 4 THEN  swkr_row = row     'Logs the row it found the SOCWKR string as swkr_row
+				EMWriteScreen "x", 5, 10                                        'We always send notice to client
+				IF forms_to_arep = "Y" THEN EMWriteScreen "x", arep_row, 10     'If forms_to_arep was "Y" (see above) it puts an X on the row ALTREP was found.
+				IF forms_to_swkr = "Y" THEN EMWriteScreen "x", swkr_row, 10     'If forms_to_arep was "Y" (see above) it puts an X on the row ALTREP was found.
+				transmit                                                        'Transmits to start the memo writing process'
 				'Writing the verifs needed into the notice
 				call write_variable_in_spec_memo("The following verifications were not provided: ")
 				call write_variable_in_spec_memo("")
@@ -442,19 +463,19 @@ IF edit_notice_check = 1 THEN
 	LOOP UNTIL row = 18 or last_month_check = "NOT"
 END IF
 
-If self_declaration_of_income_over_165_FPG = 1 THEN
-	call navigate_to_MAXIS_screen("STAT", "PROG")
-	EMReadScreen int_date, 8, 10, 55
-          	int_date = replace(int_date, " ", "/")
-	call navigate_to_MAXIS_screen("ELIG", "FS")
-	transmit
-	EMWriteScreen "x", 15, 4
-	transmit
-	EMReadScreen reported_income, 10, 9, 30
-	reported_income = trim(reported_income)
-	EMReadScreen max_gross_income, 10, 15, 67
-	max_gross_income = trim(max_gross_income)
-End if
+'If self_declaration_of_income_over_165_FPG = 1 THEN
+'	call navigate_to_MAXIS_screen("STAT", "PROG")
+'	EMReadScreen int_date, 8, 10, 55
+'          	int_date = replace(int_date, " ", "/")
+'	call navigate_to_MAXIS_screen("ELIG", "FS")
+'	transmit
+'	EMWriteScreen "x", 15, 4
+'	transmit
+'	EMReadScreen reported_income, 10, 9, 30
+'	reported_income = trim(reported_income)
+'	EMReadScreen max_gross_income, 10, 15, 67
+'	max_gross_income = trim(max_gross_income)
+'End if
 
 'NOW IT CASE NOTES THE DATA.
 call start_a_blank_case_note
@@ -468,14 +489,14 @@ call write_bullet_and_variable_in_case_note("Reason for denial", reason_for_deni
 call write_bullet_and_variable_in_case_note("Coding for denial", coded_denial)
 call write_bullet_and_variable_in_case_note("Verifs needed", verifs_needed)
 	'adding case note portion to cover Self Declaration of Over Income Policy
-	If self_declaration_of_income_over_165_FPG = 1 THEN
-		call write_variable_in_case_note("---")
-		call write_variable_in_case_note("   ***Self Declaration of Over Income Policy for SNAP***")
-		call write_variable_in_case_note("* Date of Interview: " & int_date)
-		call write_variable_in_case_note("* Client's Stated Total Income: $" & reported_income)
-		call write_variable_in_case_note("* Max Gross Income 165% of FPG: $" & max_gross_income)
-		call write_variable_in_case_note("* Denial Reason: Client stated their income is greater than 165% of FPG")
-	End If
+'	If self_declaration_of_income_over_165_FPG = 1 THEN
+'		call write_variable_in_case_note("---")
+'		call write_variable_in_case_note("   ***Self Declaration of Over Income Policy for SNAP***")
+'		call write_variable_in_case_note("* Date of Interview: " & int_date)
+'		call write_variable_in_case_note("* Client's Stated Total Income: $" & reported_income)
+'		call write_variable_in_case_note("* Max Gross Income 165% of FPG: $" & max_gross_income)
+'		call write_variable_in_case_note("* Denial Reason: Client stated their income is greater than 165% of FPG")
+'	End If
 If updated_MMIS_check = 1 then call write_variable_in_case_note("* Updated MMIS.")
 If disabled_client_check = 1 then call write_variable_in_case_note("* Client is disabled.")
 If WCOM_check = 1 then call write_variable_in_case_note("* Added WCOM to notice.")

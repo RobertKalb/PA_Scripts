@@ -6,29 +6,31 @@ STATS_manualtime = 480          'manual run time in seconds
 STATS_denomination = "C"        'C is for each case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("03/02/2018", "Fixed header for case notes that have an EGA screening, header information was duplicating.", "Ilse Ferris, Hennepin County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK ===============================================================================================
 
 'DATE CALCULATIONS----------------------------------------------------------------------------------------------------
 MAXIS_footer_month = datepart("m", date) & ""
@@ -264,6 +266,7 @@ If EGA_screening_check = 1 then
     	EMER_available_date = "Currently available"
     END IF
 
+	crisis = ""
     'Logic to enter what the "crisis" variable is from the check boxes indicated
     If eviction_check = 1 then crisis = crisis & "eviction, "
     If utility_disconnect_check = 1 then crisis = crisis & "utility disconnect, "
@@ -411,6 +414,7 @@ DO
 	 call check_for_password(are_we_passworded_out)  'Adding functionality for MAXIS v.6 Passworded Out issue'
  LOOP UNTIL are_we_passworded_out = false
 
+crisis = ""
 'Logic to enter what the "crisis" variable is from the checkboxes indicated
 If eviction_check = 1 then crisis = crisis & "eviction, "
 If utility_disconnect_check = 1 then crisis = crisis & "utility disconnect, "

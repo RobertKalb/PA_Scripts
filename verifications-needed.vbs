@@ -6,29 +6,30 @@ STATS_manualtime = 210    'sets the manual run time
 STATS_denomination = "C"  'C is for case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'THIS SCRIPT IS BEING USED IN A WORKFLOW SO DIALOGS ARE NOT NAMED
 'DIALOGS MAY NOT BE DEFINED AT THE BEGINNING OF THE SCRIPT BUT WITHIN THE SCRIPT FILE
@@ -71,8 +72,8 @@ If LTC_case = vbYes then 									'Shows dialog if LTC
 				  EditBox 70, 300, 275, 15, medical_expenses
 				  EditBox 50, 320, 295, 15, veterans_info
 				  EditBox 50, 340, 295, 15, other_proofs
-				  CheckBox 5, 360, 240, 10, "Check here if you sent form DHS-2919A (Verification Request Form - A).", verif_A_check
-				  CheckBox 5, 375, 240, 10, "Check here if you sent form DHS-2919B (Verification Request Form - B).", verif_B_check
+				  CheckBox 5, 360, 240, 10, "Check here if you sent form DHS-2919 (Verification Request).", verif_A_check
+				  CheckBox 5, 375, 240, 10, "Check here if you sent form DHS-2919 (Verification Request).", verif_B_check
 				  CheckBox 5, 390, 165, 10, "Sent form to AREP?", sent_arep_checkbox
 				  CheckBox 5, 405, 95, 10, "Signature page needed?", signature_page_needed_check
 				  CheckBox 5, 420, 130, 10, "Check here to TIKL out for this case.", TIKL_check
@@ -129,8 +130,7 @@ ELSEIF LTC_case = vbNo then							'Shows dialog if not LTC
 				  EditBox 30, 195, 315, 15, SHEL
 				  EditBox 30, 215, 315, 15, INSA
 				  EditBox 50, 235, 295, 15, other_proofs
-				  CheckBox 5, 260, 240, 10, "Check here if you sent form DHS-2919A (Verification Request Form - A).", verif_A_check
-				  CheckBox 5, 275, 240, 10, "Check here if you sent form DHS-2919B (Verification Request Form - B).", verif_B_check
+				  CheckBox 5, 275, 240, 10, "Check here if you sent form DHS-2919 (Verification Request).", verif_check
 				  CheckBox 5, 290, 240, 15, "Check here if these are postponed verifications for expedited SNAP.  ", postponed_check
 				  CheckBox 5, 310, 175, 10, "Sent form to AREP?", sent_arep_checkbox
 				  CheckBox 5, 325, 95, 10, "Signature page needed?", signature_page_needed_check
@@ -203,8 +203,8 @@ call write_bullet_and_variable_in_case_note("INSA", INSA)
 call write_bullet_and_variable_in_case_note("Veteran's info", veterans_info)
 call write_bullet_and_variable_in_case_note("Medical expenses", medical_expenses)
 call write_bullet_and_variable_in_case_note("Other proofs", other_proofs)
-IF verif_A_check = checked THEN write_variable_in_CASE_NOTE("* Verification request form A sent.")
-IF verif_B_check = checked THEN write_variable_in_CASE_NOTE("* Verification request form B sent.")
+IF verif_A_check = checked THEN write_variable_in_CASE_NOTE("* Verification request sent.")
+IF verif_B_check = checked THEN write_variable_in_CASE_NOTE("* Verification request B sent.")
 IF sent_arep_checkbox = checked THEN write_variable_in_CASE_NOTE("* Forms sent to AREP.")
 IF signature_page_needed_check = checked THEN write_variable_in_CASE_NOTE("* Signature page needed.")
 Call write_variable_in_case_note("---")

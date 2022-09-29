@@ -6,29 +6,31 @@ STATS_manualtime = 300          'manual run time in seconds
 STATS_denomination = "C"        'C is for each case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("1/2/2018", "Fixing bug that prevented the script from writing SPEC/MEMO due to MAXIS updates.", "Casey Love, Ramsey County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 BeginDialog same_day_dialog, 0, 0, 191, 278, "Enter No Show Information"
   EditBox 80, 20, 95, 15, MAXIS_case_number
@@ -148,9 +150,12 @@ interview_date = date & ""
 
 'Defaults the Client Phone number to the first phone number listed on MAXIS in STAT/ADDR
 Call navigate_to_MAXIS_screen ("STAT", "ADDR")
-EMReadScreen phone_01, 3, 17, 45
-EMReadScreen phone_02, 3, 17, 51
-EMReadScreen phone_03, 4, 17, 55
+'EMReadScreen phone_01, 3, 17, 45
+EMReadScreen phone_01, 3, 16, 39
+'EMReadScreen phone_02, 3, 17, 51
+EMReadScreen phone_02, 3, 16, 45
+'EMReadScreen phone_03, 4, 17, 55
+EMReadScreen phone_03, 4, 16, 49
 phone_number = phone_01 & "-" & phone_02 & "-" & phone_03 & ""
 
 
@@ -291,19 +296,16 @@ If nomi_sent = 1 then 'Asks if this is a recert. A recert uses a SPEC/MEMO notic
 		If still_self = "Select Function Menu (SELF)" then script_end_procedure("Script was not able to get past SELF menu. Is case in background?")
 
 		'Creates a new MEMO. If it's unable the script will stop.
-		PF5
-		EMReadScreen memo_display_check, 12, 2, 33
-		If memo_display_check = "Memo Display" then script_end_procedure("You are not able to go into update mode. Did you enter in inquiry by mistake? Please try again in production.")
-		EMWriteScreen "x", 5, 10
-		transmit
+		start_a_new_spec_memo
 
 		'Writes the info into the MEMO.
-		EMSetCursor 3, 15
-		EMSendKey "************************************************************"
-		EMSendKey "You have missed your Food Support interview that was scheduled for " & interview_date & " at " & interview_time & "." & "<newline>" & "<newline>"
-		EMSendKey "Please contact your worker at the telephone number listed below to reschedule the required Food Support interview." & "<newline>" & "<newline>"
-		EMSendKey "The Combined Application Form (DHS-5223), the interview by phone or in the office, and the mandatory verifications needed to process your recertification must be completed by " & last_day_for_recert & " or your Food Support case will Auto-Close on this date." & "<newline>"
-		EMSendKey "************************************************************"
+		Call write_variable_in_SPEC_MEMO ("************************************************************")
+		Call write_variable_in_SPEC_MEMO ("You have missed your Food Support interview that was scheduled for " & interview_date & " at " & interview_time & ".")
+		Call write_variable_in_SPEC_MEMO (" ")
+		Call write_variable_in_SPEC_MEMO ("Please contact your worker at the telephone number listed below to reschedule the required Food Support interview.")
+		Call write_variable_in_SPEC_MEMO (" ")
+		Call write_variable_in_SPEC_MEMO ("The Combined Application Form (DHS-5223), the interview by phone or in the office, and the mandatory verifications needed to process your recertification must be completed by " & last_day_for_recert & " or your Food Support case will Auto-Close on this date.")
+		Call write_variable_in_SPEC_MEMO ("************************************************************")
 		PF4
 
 	Elseif recert_check = 7 then
