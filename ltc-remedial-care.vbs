@@ -6,40 +6,42 @@ STATS_manualtime = 30          'manual run time in seconds
 STATS_denomination = "I"       'I is for item
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-' if func_lib_run <> true then 
-' 	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-' 	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-' 	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-' 	text_from_the_other_script = fso_command.ReadAll
-' 	fso_command.Close
-' 	Execute text_from_the_other_script
-' 	func_lib_run = true
-' end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("03/01/2018", "Upated remedial care amount to this years amount of $188.00.", "Ilse Ferris, Hennepin County.")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK ======================================================================================================
 
 '<<<GO THROUGH AND REMOVE REDUNDANT FUNCTIONS
-
-
 EMConnect ""
+remedial_care_amt = "182.00"	'Amount that needs to be updated with current remedial care amount.
+target_date = "12/31/2020" 'This sets the date range that should be changed, and will need to be updated in code at each COLA.
 
 BeginDialog Dialog1, 0, 0, 191, 86, "Dialog"
   ButtonGroup ButtonPressed
     OkButton 135, 10, 50, 15
     CancelButton 135, 30, 50, 15
-  Text 10, 5, 115, 50, "This script will update your STAT/BILS panel's remedial care (27) entries, to the current deduction rate of $260. The script will only update the entries dated 07/01/2012 or later."
+  Text 10, 5, 115, 50, "This script will update your STAT/BILS panel's remedial care (27) entries, to the current deduction rate of $" & remedial_care_amt & "."
   Text 10, 65, 170, 20, "Press OK to start. Remember to case note when you are finished!"
 EndDialog
 
@@ -63,7 +65,6 @@ Do
   EMWaitReady 0, 0
 Loop until page_number = " 1"
 
-target_date = "12/31/2014" 'This sets the date range that should be changed, and will need to be updated in code at each COLA.
 updates_made = 0 'Setting the variable for the following do...loop
 
 Do
@@ -73,8 +74,8 @@ Do
   BILS_line_01 = split(BILS_line_01, "  ")
   BILS_line_01(1) = replace(BILS_line_01(1), " ", "/")
   If IsDate(BILS_line_01(1)) = True then
-    If datediff("d", target_date, BILS_line_01(1)) > 0 and BILS_line_01(2) = 27 and BILS_line_01(5) <> "243.00" then
-      EMWriteScreen "243.00", 6, 48
+    If datediff("d", target_date, BILS_line_01(1)) > 0 and BILS_line_01(2) = 27 and BILS_line_01(5) <> remedial_care_amt then
+      EMWriteScreen remedial_care_amt, 6, 48
       EMWriteScreen "c", 6, 24
       updates_made = updates_made + 1
     End If
@@ -85,8 +86,8 @@ Do
   BILS_line_02 = split(BILS_line_02, "  ")
   BILS_line_02(1) = replace(BILS_line_02(1), " ", "/")
   If IsDate(BILS_line_02(1)) = True then
-    If datediff("d", target_date, BILS_line_02(1)) > 0 and BILS_line_02(2) = 27 and BILS_line_02(5) <> "243.00" then
-    EMWriteScreen "243.00", 7, 48
+    If datediff("d", target_date, BILS_line_02(1)) > 0 and BILS_line_02(2) = 27 and BILS_line_02(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 7, 48
     EMWriteScreen "c", 7, 24
     updates_made = updates_made + 1
     End If
@@ -97,8 +98,8 @@ Do
   BILS_line_03 = split(BILS_line_03, "  ")
   BILS_line_03(1) = replace(BILS_line_03(1), " ", "/")
   If IsDate(BILS_line_03(1)) = True then
-    If datediff("d", target_date, BILS_line_03(1)) > 0 and BILS_line_03(2) = 27 and BILS_line_03(5) <> "243.00" then
-    EMWriteScreen "243.00", 8, 48
+    If datediff("d", target_date, BILS_line_03(1)) > 0 and BILS_line_03(2) = 27 and BILS_line_03(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 8, 48
     EMWriteScreen "c", 8, 24
     updates_made = updates_made + 1
     End If
@@ -109,8 +110,8 @@ Do
   BILS_line_04 = split(BILS_line_04, "  ")
   BILS_line_04(1) = replace(BILS_line_04(1), " ", "/")
   If IsDate(BILS_line_04(1)) = True then
-    If datediff("d", target_date, BILS_line_04(1)) > 0 and BILS_line_04(2) = 27 and BILS_line_04(5) <> "243.00" then
-    EMWriteScreen "243.00", 9, 48
+    If datediff("d", target_date, BILS_line_04(1)) > 0 and BILS_line_04(2) = 27 and BILS_line_04(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 9, 48
     EMWriteScreen "c", 9, 24
     updates_made = updates_made + 1
     End If
@@ -121,8 +122,8 @@ Do
   BILS_line_05 = split(BILS_line_05, "  ")
   BILS_line_05(1) = replace(BILS_line_05(1), " ", "/")
   If IsDate(BILS_line_05(1)) = True then
-    If datediff("d", target_date, BILS_line_05(1)) > 0 and BILS_line_05(2) = 27 and BILS_line_05(5) <> "243.00" then
-    EMWriteScreen "243.00", 10, 48
+    If datediff("d", target_date, BILS_line_05(1)) > 0 and BILS_line_05(2) = 27 and BILS_line_05(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 10, 48
     EMWriteScreen "c", 10, 24
     updates_made = updates_made + 1
     End If
@@ -133,8 +134,8 @@ Do
   BILS_line_06 = split(BILS_line_06, "  ")
   BILS_line_06(1) = replace(BILS_line_06(1), " ", "/")
   If IsDate(BILS_line_06(1)) = True then
-    If datediff("d", target_date, BILS_line_06(1)) > 0 and BILS_line_06(2) = 27 and BILS_line_06(5) <> "243.00" then
-    EMWriteScreen "243.00", 11, 48
+    If datediff("d", target_date, BILS_line_06(1)) > 0 and BILS_line_06(2) = 27 and BILS_line_06(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 11, 48
     EMWriteScreen "c", 11, 24
     updates_made = updates_made + 1
     End If
@@ -145,8 +146,8 @@ Do
   BILS_line_07 = split(BILS_line_07, "  ")
   BILS_line_07(1) = replace(BILS_line_07(1), " ", "/")
   If IsDate(BILS_line_07(1)) = True then
-    If datediff("d", target_date, BILS_line_07(1)) > 0 and BILS_line_07(2) = 27 and BILS_line_07(5) <> "243.00" then
-    EMWriteScreen "243.00", 12, 48
+    If datediff("d", target_date, BILS_line_07(1)) > 0 and BILS_line_07(2) = 27 and BILS_line_07(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 12, 48
     EMWriteScreen "c", 12, 24
     updates_made = updates_made + 1
     End If
@@ -157,8 +158,8 @@ Do
   BILS_line_08 = split(BILS_line_08, "  ")
   BILS_line_08(1) = replace(BILS_line_08(1), " ", "/")
   If IsDate(BILS_line_08(1)) = True then
-    If datediff("d", target_date, BILS_line_08(1)) > 0 and BILS_line_08(2) = 27 and BILS_line_08(5) <> "243.00" then
-    EMWriteScreen "243.00", 13, 48
+    If datediff("d", target_date, BILS_line_08(1)) > 0 and BILS_line_08(2) = 27 and BILS_line_08(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 13, 48
     EMWriteScreen "c", 13, 24
     updates_made = updates_made + 1
     End If
@@ -169,8 +170,8 @@ Do
   BILS_line_09 = split(BILS_line_09, "  ")
   BILS_line_09(1) = replace(BILS_line_09(1), " ", "/")
   If IsDate(BILS_line_09(1)) = True then
-    If datediff("d", target_date, BILS_line_09(1)) > 0 and BILS_line_09(2) = 27 and BILS_line_09(5) <> "243.00" then
-    EMWriteScreen "243.00", 14, 48
+    If datediff("d", target_date, BILS_line_09(1)) > 0 and BILS_line_09(2) = 27 and BILS_line_09(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 14, 48
     EMWriteScreen "c", 14, 24
     updates_made = updates_made + 1
     End If
@@ -181,8 +182,8 @@ Do
   BILS_line_10 = split(BILS_line_10, "  ")
   BILS_line_10(1) = replace(BILS_line_10(1), " ", "/")
   If IsDate(BILS_line_10(1)) = True then
-    If datediff("d", target_date, BILS_line_10(1)) > 0 and BILS_line_10(2) = 27 and BILS_line_10(5) <> "243.00" then
-    EMWriteScreen "243.00", 15, 48
+    If datediff("d", target_date, BILS_line_10(1)) > 0 and BILS_line_10(2) = 27 and BILS_line_10(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 15, 48
     EMWriteScreen "c", 15, 24
     updates_made = updates_made + 1
     End If
@@ -193,8 +194,8 @@ Do
   BILS_line_11 = split(BILS_line_11, "  ")
   BILS_line_11(1) = replace(BILS_line_11(1), " ", "/")
   If IsDate(BILS_line_11(1)) = True then
-    If datediff("d", target_date, BILS_line_11(1)) > 0 and BILS_line_11(2) = 27 and BILS_line_11(5) <> "243.00" then
-    EMWriteScreen "243.00", 16, 48
+    If datediff("d", target_date, BILS_line_11(1)) > 0 and BILS_line_11(2) = 27 and BILS_line_11(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 16, 48
     EMWriteScreen "c", 16, 24
     updates_made = updates_made + 1
     End If
@@ -205,8 +206,8 @@ Do
   BILS_line_12 = split(BILS_line_12, "  ")
   BILS_line_12(1) = replace(BILS_line_12(1), " ", "/")
   If IsDate(BILS_line_12(1)) = True then
-    If datediff("d", target_date, BILS_line_12(1)) > 0 and BILS_line_12(2) = 27 and BILS_line_12(5) <> "243.00" then
-    EMWriteScreen "243.00", 17, 48
+    If datediff("d", target_date, BILS_line_12(1)) > 0 and BILS_line_12(2) = 27 and BILS_line_12(5) <> remedial_care_amt then
+    EMWriteScreen remedial_care_amt, 17, 48
     EMWriteScreen "c", 17, 24
     updates_made = updates_made + 1
     End If
@@ -228,6 +229,6 @@ EMSendKey "<PF3>"
 EMWaitReady 0, 0
 
 If updates_made <> 0 then MsgBox "Success! Updates made: " & updates_made & "."
-If updates_made = 0 then MsgBox "Success! However, there were no remedial care entries found for after 01/01/2015. You may have already updated this case! Otherwise, this client may be at their renewal, or no remedial care deduction was made. If this appears to be an error, contact the script administrator."
+If updates_made = 0 then MsgBox "No remedial care entries found. You may have already updated this case! Otherwise, this client may be at their renewal, or no remedial care deduction was made. If this appears to be an error, send an email to " & contact_admin
 
 script_end_procedure("")

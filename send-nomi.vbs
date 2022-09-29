@@ -6,32 +6,34 @@ STATS_manualtime = 276         'manual run time in seconds
 STATS_denomination = "C"       'C is for case
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-' if func_lib_run <> true then 
-' 	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-' 	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-' 	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-' 	text_from_the_other_script = fso_command.ReadAll
-' 	fso_command.Close
-' 	Execute text_from_the_other_script
-' 	func_lib_run = true
-' end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("01/10/2017", "Updated TIKL functionality. A TIKL is created for Application Day 30 if NOMI is sent prior to Application Day 30. Otherwise a TIKL is created for an additional 10 days .", "Ilse Ferris, Hennepin County")
-' call changelog_update("11/28/2016", "Resolved merge conflict error.", "Ilse Ferris, Hennepin County")
-' call changelog_update("11/28/2016", "Updated script to support TIKL created by the NOTES - APPOINTMENT LETTER script. Also removed Hennepin County specific NOMI process. ", "Ilse Ferris, Hennepin County")
-' call changelog_update("11/20/2016", "Initial version.", "Ilse Ferris, Hennepin County")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("1/2/2018", "Fixing bug that prevented the script from writing SPEC/MEMO due to MAXIS updates.", "Casey Love, Ramsey County")
+'("01/10/2017", "Updated TIKL functionality. A TIKL is created for Application Day 30 if NOMI is sent prior to Application Day 30. Otherwise a TIKL is created for an additional 10 days .", "Ilse Ferris, Hennepin County")
+'("11/28/2016", "Resolved merge conflict error.", "Ilse Ferris, Hennepin County")
+'("11/28/2016", "Updated script to support TIKL created by the NOTES - APPOINTMENT LETTER script. Also removed Hennepin County specific NOMI process. ", "Ilse Ferris, Hennepin County")
+'("11/20/2016", "Initial version.", "Ilse Ferris, Hennepin County")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'Checks for county info from global variables, or asks if it is not already defined.
 get_county_code
@@ -102,7 +104,7 @@ End if
 row  = 1
 col = 1
 EMSearch "Case Number: ", row, col
-If row =- 0 then script_end_procedure("MAXIS may be busy: the script appears to have errored out. This should be temporary. Try again in a moment. If it happens repeatedly contact the alpha user for your agency.")
+If row =- 0 then script_end_procedure("MAXIS may be busy: the script appears to have errored out. This should be temporary. Try again in a moment. If it happens repeatedly please send an email to " & contact_admin)
 EMReadScreen MAXIS_case_number, 8, row, col + 12
 MAXIS_case_number = trim(MAXIS_case_number)
 PF3 			'removes the TIKL window
@@ -157,39 +159,8 @@ ELSEIF interview_confirm = vbNo then 		'interview was not completed
     		CALL check_for_password(are_we_passworded_out)			'function that checks to ensure that the user has not passworded out of MAXIS, allows user to password back into MAXIS
     	Loop until are_we_passworded_out = false					'loops until user passwords back in
 
-    	call navigate_to_MAXIS_screen("SPEC", "MEMO")		'Navigating to SPEC/MEMO
-    	'Creates a new MEMO. If it's unable the script will stop.
-    	PF5
-    	EMReadScreen memo_display_check, 12, 2, 33
-    	If memo_display_check = "Memo Display" then script_end_procedure("You are not able to go into update mode. Did you enter in inquiry by mistake? Please try again in production.")
-
-    	'Checking for an AREP. If there's an AREP it'll navigate to STAT/AREP, check to see if the forms go to the AREP. If they do, it'll write X's in those fields below.
-    	row = 4                             'Defining row and col for the search feature.
-    	col = 1
-    	EMSearch "ALTREP", row, col         'Row and col are variables which change from their above declarations if "ALTREP" string is found.
-    	IF row > 4 THEN                     'If it isn't 4, that means it was found.
-    		arep_row = row                                          'Logs the row it found the ALTREP string as arep_row
-    		call navigate_to_MAXIS_screen("STAT", "AREP")           'Navigates to STAT/AREP to check and see if forms go to the AREP
-    		EMReadscreen forms_to_arep, 1, 10, 45                   'Reads for the "Forms to AREP?" Y/N response on the panel.
-    		call navigate_to_MAXIS_screen("SPEC", "MEMO")           'Navigates back to SPEC/MEMO
-    		PF5                                                     'PF5s again to initiate the new memo process
-    	END IF
-
-    	'Checking for SWKR
-    	row = 4                             'Defining row and col for the search feature.
-    	col = 1
-    	EMSearch "SOCWKR", row, col         'Row and col are variables which change from their above declarations if "SOCWKR" string is found.
-    	IF row > 4 THEN                     'If it isn't 4, that means it was found.
-    		swkr_row = row                                          'Logs the row it found the SOCWKR string as swkr_row
-    		call navigate_to_MAXIS_screen("STAT", "SWKR")         'Navigates to STAT/SWKR to check and see if forms go to the SWKR
-    		EMReadscreen forms_to_swkr, 1, 15, 63                'Reads for the "Forms to SWKR?" Y/N response on the panel.
-    		call navigate_to_MAXIS_screen("SPEC", "MEMO")         'Navigates back to SPEC/MEMO
-    		PF5                                           'PF5s again to initiate the new memo process
-    	END IF
-    	EMWriteScreen "x", 5, 10                                        'Initiates new memo to client
-    	IF forms_to_arep = "Y" THEN EMWriteScreen "x", arep_row, 10     'If forms_to_arep was "Y" (see above) it puts an X on the row ALTREP was found.
-    	IF forms_to_swkr = "Y" THEN EMWriteScreen "x", swkr_row, 10     'If forms_to_arep was "Y" (see above) it puts an X on the row ALTREP was found.
-    	transmit
+		'Navigating to SPEC/MEMO and starting a new memo
+		start_a_new_spec_memo
 
     	'Writes the info into the MEMO.
     	Call write_variable_in_SPEC_MEMO("************************************************************")
@@ -301,18 +272,18 @@ ELSEIF interview_confirm = vbNo then 		'interview was not completed
     	End if
 
         'date variables for the TIKL
-        day30_date = dateadd("d", 31, application_date)
+        day30_date = dateadd("d", 30, application_date)
 
     	'Sets TIKL
         call navigate_to_MAXIS_screen("DAIL", "WRIT")
-        IF date < day30_date then											'if current date is less than the application date 
+        IF date < day30_date then											'if current date is less than the application date
         	days_pending = "30 days"										'value of variable for case note & TIKL to "30 days"
         	call create_MAXIS_friendly_date(application_date, 31, 5, 18)	'sets a 30 day pending TIKL if the date if at least 10 days exists between the NOMI sent and pending day 30
-        ELSE 
+        ELSE
 			days_pending = "10 additional days"								'value of variable for case note & TIKL to "10 additional days"
-			call create_MAXIS_friendly_date(date, 10, 5, 18)				'sets a 10 day TIKL if the current date is equal to over over the application date 
+			call create_MAXIS_friendly_date(date, 10, 5, 18)				'sets a 10 day TIKL if the current date is equal to over over the application date
         END IF
-		
+
         Call write_variable_in_TIKL("A NOMI was sent & case has been pending for " & days_pending & ". Check case notes to see if interview has been completed. Deny the case if the client has not completed the interview.")
         transmit
         PF3

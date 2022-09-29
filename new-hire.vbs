@@ -9,29 +9,31 @@ STATS_manualtime = 345         'manual run time in seconds
 STATS_denomination = "C"       'C is for each MEMBER
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-' if func_lib_run <> true then 
-' 	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-' 	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-' 	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-' 	text_from_the_other_script = fso_command.ReadAll
-' 	fso_command.Close
-' 	Execute text_from_the_other_script
-' 	func_lib_run = true
-' end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("01/10/2018", "Updated coordinates in STAT/JOBS for income type and verification codes.", "Ilse Ferris, Hennepin County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'DIALOGS----------------------------------------------------------------------------------------------
 'This is a dialog asking if the job is known to the agency.
@@ -74,13 +76,24 @@ If len(current_day) = 1 then current_day = "0" & current_day
 current_year = datepart("yyyy", date)
 current_year = current_year - 2000
 
+'Check date of message to allow different behaviors
+newFormat = False
+EMReadScreen Message_Dt, 5, 6, 11
+Message_M = CInt(left(Message_Dt, 2))
+Message_Y = CInt(right(Message_Dt, 2))
+If Val(Message_Y) > 22 OR (Val(Message_Y) = 22 and Val(Message_M) > 4) THEN 
+	EMReadScreen new_HIRE_ref_num, 2, 6, 49
+	newFormat = True
+END IF
+
+
 'SELECTS THE DAIL MESSAGE AND READS THE RESPONSE
 EMSendKey "x"
 transmit
 row = 1
 col = 1
 EMSearch "NEW JOB DETAILS", row, col 	'Has to search, because every once in a while the rows and columns can slide one or two positions.
-If row = 0 then script_end_procedure("MAXIS may be busy: the script appears to have errored out. This should be temporary. Try again in a moment. If it happens repeatedly contact the alpha user for your agency.")
+If row = 0 then script_end_procedure("MAXIS may be busy: the script appears to have errored out. This should be temporary. Try again in a moment. If it happens repeatedly please send an email to " & contact_admin)
 EMReadScreen new_hire_first_line, 61, row, col 'Reads each line for the case note.
 EMReadScreen new_hire_second_line, 61, row + 1, col
 EMReadScreen new_hire_third_line, 61, row + 2, col
@@ -133,17 +146,31 @@ If stat_check <> "STAT" then script_end_procedure("Unable to get to stat due to 
 'GOING TO MEMB, NEED TO CHECK THE HH MEMBER
 EMWriteScreen "memb", 20, 71
 transmit
-Do
-	EMReadScreen MEMB_current, 1, 2, 73
-	EMReadScreen MEMB_total, 1, 2, 78
-	EMReadScreen MEMB_SSN, 11, 7, 42
-	If new_HIRE_SSN = replace(MEMB_SSN, " ", "-") then
+if newFormat = False then 
+	Do
+		EMReadScreen MEMB_current, 1, 2, 73
+		EMReadScreen MEMB_total, 1, 2, 78
+		EMReadScreen MEMB_SSN, 11, 7, 42
+		If new_HIRE_SSN = replace(MEMB_SSN, " ", "-") then
+			EMReadScreen HH_memb, 2, 4, 33
+			EMReadScreen memb_age, 2, 8, 76
+			If cint(memb_age) < 19 then MsgBox "This client is under 19, so make sure to check that school verification is on file."
+		End if
+		transmit
+	Loop until (MEMB_current = MEMB_total) or (new_HIRE_SSN = replace(MEMB_SSN, " ", "-"))
+Else
+	Do
+		EMReadScreen MEMB_current, 1, 2, 73
+		EMReadScreen MEMB_total, 1, 2, 78
+		EMReadScreen MEMB_SSN, 11, 7, 42
 		EMReadScreen HH_memb, 2, 4, 33
-		EMReadScreen memb_age, 2, 8, 76
-		If cint(memb_age) < 19 then MsgBox "This client is under 19, so make sure to check that school verification is on file."
-	End if
-	transmit
-Loop until (MEMB_current = MEMB_total) or (new_HIRE_SSN = replace(MEMB_SSN, " ", "-"))
+		If HH_memb = new_HIRE_ref_num then
+			EMReadScreen memb_age, 2, 8, 76
+			If cint(memb_age) < 19 then MsgBox "This client is under 19, so make sure to check that school verification is on file."
+		End if
+		transmit
+	Loop until (MEMB_current = MEMB_total) or (HH_memb = new_HIRE_ref_num)
+End IF
 
 'GOING TO JOBS
 EMWriteScreen "jobs", 20, 71
@@ -182,13 +209,10 @@ If create_JOBS_checkbox = checked then
 	transmit	'Transmits
 	EMReadScreen MAXIS_footer_month, 2, 20, 55	'Reads footer month for updating the panel
 	EMReadScreen MAXIS_footer_year, 2, 20, 58		'Reads footer year
-	IF ((MAXIS_footer_month * 1) >= 10 AND (MAXIS_footer_year * 1) >= "16") OR (MAXIS_footer_year = "17") THEN  'handling for changes to jobs panel for bene month 10/16
-		EMWriteScreen "w", 5, 34				'Wage income is the type
-		EMWriteScreen "n", 6, 34				'No proof has been provided
-	ELSE
-		EMWriteScreen "w", 5, 38				'Wage income is the type
-		EMWriteScreen "n", 6, 38				'No proof has been provided
-	END IF
+
+	EMWriteScreen "w", 5, 34				'Wage income is the type
+	EMWriteScreen "n", 6, 34				'No proof has been provided
+
 	EMWriteScreen employer, 7, 42			'Adds employer info
 	EMWriteScreen month_hired, 9, 35		'Adds month hired to start date (this is actually the day income was received)
 	EMWriteScreen day_hired, 9, 38			'Adds day hired
@@ -232,11 +256,15 @@ PF9
 transmit
 
 'Writes new hire message but removes the SSN.
-EMSendKey replace(new_hire_first_line, new_HIRE_SSN, "XXX-XX-XXXX") & "<newline>" & new_hire_second_line & "<newline>" & new_hire_third_line + "<newline>" & new_hire_fourth_line & "<newline>" & "---" & "<newline>"
+if newFormat = False Then 
+	EMSendKey replace(new_hire_first_line, new_HIRE_SSN, "XXX-XX-XXXX") & "<newline>" & new_hire_second_line & "<newline>" & new_hire_third_line + "<newline>" & new_hire_fourth_line & "<newline>" & "---" & "<newline>"
+Else 
+	EMSendKey new_hire_first_line & "<newline>" & new_hire_second_line & "<newline>" & new_hire_third_line + "<newline>" & new_hire_fourth_line & "<newline>" & "---" & "<newline>"
+End IF
 
 'Writes that the message is unreported, and that the proofs are being sent/TIKLed for.
 call write_variable_in_case_note("* Job unreported to the agency.")
-call write_variable_in_case_note("* Sent employment verification and DHS-2919B (Verification Request Form - B).")
+call write_variable_in_case_note("* Sent employment verification and DHS-2919 (Verification Request).")
 If create_JOBS_checkbox = checked then call write_variable_in_case_note("* JOBS updated with new hire info from DAIL.")
 if CCA_checkbox = 1 then call write_variable_in_case_note("* Sent status update to CCA.")
 if ES_checkbox = 1 then call write_variable_in_case_note("* Sent status update to ES.")
@@ -250,7 +278,7 @@ PF3
 PF3
 
 'If TIKL_checkbox is unchecked, it needs to end here.
-If TIKL_checkbox = unchecked then script_end_procedure("Success! MAXIS updated for new HIRE message, and a case note made. An Employment Verification and Verif Req Form B should now be sent. The job is at " & employer & ".")
+If TIKL_checkbox = unchecked then script_end_procedure("Success! MAXIS updated for new HIRE message, and a case note made. An Employment Verification and Verif Req should now be sent. The job is at " & employer & ".")
 
 'Navigates to TIKL
 EMSendKey "w"
@@ -271,4 +299,4 @@ transmit
 PF3
 
 'Exits script and logs stats if appropriate
-script_end_procedure("Success! MAXIS updated for new HIRE message, a case note made, and a TIKL has been sent for 10 days from now. An Employment Verification and Verif Req Form B should now be sent. The job is at " & employer & ".")
+script_end_procedure("Success! MAXIS updated for new HIRE message, a case note made, and a TIKL has been sent for 10 days from now. An Employment Verification and Verif Req should now be sent. The job is at " & employer & ".")

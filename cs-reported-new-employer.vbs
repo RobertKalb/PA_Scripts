@@ -6,30 +6,37 @@ STATS_manualtime = 345         'manual run time in seconds
 STATS_denomination = "C"       'C is for Case
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-' if func_lib_run <> true then 
-' 	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-' 	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-' 	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-' 	text_from_the_other_script = fso_command.ReadAll
-' 	fso_command.Close
-' 	Execute text_from_the_other_script
-' 	func_lib_run = true
-' end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("12/08/2016", "Bug Fix so that the income type and verification code if creating a new panel is in the correct place.", "Casey Love, Ramsey County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("01/10/2018", "Updated coordinates in STAT/JOBS for income type and verification codes.", "Ilse Ferris, Hennepin County")
+'("12/08/2016", "Bug Fix so that the income type and verification code if creating a new panel is in the correct place.", "Casey Love, Ramsey County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
+
+
+
+' TODO have these call the same script - new hire is the same functionality - https://github.com/MN-Script-Team/DHS-MAXIS-Scripts/issues/2785
+' TODO add option to update STA/MISC - https://github.com/MN-Script-Team/DHS-MAXIS-Scripts/issues/2933'
 
 'DIALOGS----------------------------------------------------
 'This is a dialog asking if the job is known to the agency.
@@ -68,7 +75,7 @@ col = 1
 EMSearch "REF NBR: ", row, col
 
 'If not found, script will exit
-if row = 0 then script_end_procedure("A member number could not be found on this case. Process manually. If there is a household member number somewhere on this message, contact your alpha user with the case number, and leave the message on your DAIL for the time being. Staff may want to look at this message for bugfixing.")
+if row = 0 then script_end_procedure("A member number could not be found on this case. Process manually. If there is a household member number somewhere on this message, leave the message on your DAIL for the time being, and send an email to " & contact_admin)
 
 'Reading that HH member and employer, and cleaning up
 EMReadScreen HH_memb, 2, row, col + 9
@@ -144,13 +151,8 @@ EMReadScreen MAXIS_footer_month, 2, 20, 55
 EMReadScreen MAXIS_footer_year, 2, 20, 58
 
 'Default info (wage income, no verification)
-IF ((MAXIS_footer_month * 1) >= 10 AND (MAXIS_footer_year * 1) >= "16") OR (MAXIS_footer_year = "17") THEN  'handling for changes to jobs panel for bene month 10/16
-	EMWriteScreen "w", 5, 34				'Wage income is the type
-	EMWriteScreen "n", 6, 34				'No proof has been provided
-ELSE
-	EMWriteScreen "w", 5, 38				'Wage income is the type
-	EMWriteScreen "n", 6, 38				'No proof has been provided
-END IF
+EMWriteScreen "w", 5, 34				'Wage income is the type
+EMWriteScreen "n", 6, 34				'No proof has been provided
 
 'Writing the first day of the footer month as the prospective paydate, and 0 for both wage and hours
 EMWriteScreen MAXIS_footer_month, 12, 54
