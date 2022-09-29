@@ -6,37 +6,35 @@ STATS_manualtime = 127         'manual run time in seconds
 STATS_denomination = "C"       'C is for case
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-' if func_lib_run <> true then 
-' 	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-' 	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-' 	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-' 	text_from_the_other_script = fso_command.ReadAll
-' 	fso_command.Close
-' 	Execute text_from_the_other_script
-' 	func_lib_run = true
-' end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("1/2/2018", "Fixing bug that prevented the script from writing SPEC/MEMO due to MAXIS updates. Additional updates to update syntax.", "Casey Love, Ramsey County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK ======================================================================================================
 
 '<<<<<GO THROUGH THE SCRIPT AND REMOVE REDUNDANT FUNCTIONS, THANKS TO CUSTOM FUNCTIONS THEY ARE NOT REQUIRED.
 
 EMConnect ""
-
-Set objNet = CreateObject("WScript.NetWork") 
-windows_user_ID = UCASE(objNet.UserName)
-
 
 BeginDialog worker_sig_dialog, 0, 0, 141, 46, "Worker signature"
   EditBox 15, 25, 50, 15, worker_sig
@@ -49,45 +47,40 @@ EndDialog
 Dialog worker_sig_dialog
 If ButtonPressed_worker_sig_dialog = 0 then stopscript
 
-EMWriteScreen "p", 6, 3
-TRANSMIT
+EMReadScreen MAXIS_case_number, 8, 5, 73
+MAXIS_case_number = trim(MAXIS_case_number)
 
-EMWriteScreen "memo", 20, 70
-TRANSMIT
+EMWriteScreen "P", 6, 3
+transmit
 
-PF5
+EMWriteScreen "MEMO", 20, 70
 
-EMWriteScreen "x", 5, 12
-Transmit
+start_a_new_spec_memo
 
-EMSendKey "You are turning 60 next month, so you may be eligible for a new deduction for SNAP." + "<newline>" + "<newline>"
-EMSendKey "Clients who are over 60 years old may receive increased SNAP benefits if they have recurring medical bills over $35 each month." + "<newline>" + "<newline>"
-EMSendKey "If you have medical bills over $35 each month, please contact your worker to discuss adjusting your benefits. You will need to send in proof of the medical bills, such as pharmacy receipts, an explanation of benefits, or premium notices." + "<newline>" + "<newline>"
-EMSendKey "Please call your worker with questions."
+Call write_variable_in_SPEC_MEMO ("You are turning 60 next month, so you may be eligible for a new deduction for SNAP. Clients who are over 60 years old may receive increased SNAP benefits if they have recurring medical bills over $35 each month.")
+Call write_variable_in_SPEC_MEMO ("---")
+Call write_variable_in_SPEC_MEMO ("If you have medical bills over $35 each month, please contact your worker to discuss adjusting your benefits. You will need to send in proof of the medical bills, such as pharmacy receipts, an explanation of benefits, or premium notices.")
+Call write_variable_in_SPEC_MEMO ("  ")
+Call write_variable_in_SPEC_MEMO ("Please call your worker with questions.")
 
 PF4
 
-EMReadScreen maxis_case_number, 8, 19, 38
-maxis_case_number = replace(maxis_case_number, " ", "")
-CALL navigate_to_MAXIS_screen("CASE", "NOTE")
+EMWriteScreen "case", 19, 22
+EMWriteScreen "note", 19, 70
+transmit
 
-DO
-	PF9
-	EMReadScreen case_note_check, 17, 2, 33
-	EMReadScreen mode_check, 1, 20, 09
-	If case_note_check <> "Case Notes (NOTE)" or mode_check <> "A" then msgbox "The script can't open a case note. Reasons may include:" & vbnewline & vbnewline & "* You may be in inquiry" & vbnewline & "* You may not have authorization to case note this case (e.g.: out-of-county case)" & vbnewline & vbnewline & "Check MAXIS and/or navigate to CASE/NOTE, and try again. You can press the STOP SCRIPT button on the power pad to stop the script."
-Loop until (mode_check = "A" or mode_check = "E")
+start_a_blank_CASE_NOTE
 
-call write_variable_in_CASE_NOTE("MEMBER HAS TURNED 60 - NOTIFY ABOUT POSSIBLE FMED DEDUCTION")
-call write_variable_in_CASE_NOTE("---")
-call write_variable_in_CASE_NOTE("* Sent MEMO to client about FMED deductions.")
-call write_variable_in_CASE_NOTE("---")
-call write_variable_in_CASE_NOTE(worker_sig)
-
+Call write_variable_in_CASE_NOTE ("MEMBER HAS TURNED 60 - NOTIFY ABOUT POSSIBLE FMED DEDUCTION")
+Call write_variable_in_CASE_NOTE ("---")
+Call write_variable_in_CASE_NOTE ("* Sent MEMO to client about FMED deductions.")
+Call write_variable_in_CASE_NOTE ("---")
+Call write_variable_in_CASE_NOTE (worker_sig & ", using automated script.")
 
 PF3
+
 PF3
 
-MsgBox "The script has sent a MEMO to the client about the possible FMED deduction, and case noted the action."
+Call navigate_to_MAXIS_screen ("DAIL", "DAIL")
 
-script_end_procedure("")
+script_end_procedure("Success! The script has sent a MEMO to the client about the possible FMED deduction, and case noted the action.")

@@ -24,34 +24,30 @@ STATS_manualtime = 80        'manual run time in seconds
 STATS_denomination = "I"       'I is for each Bndx dail message
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-' if func_lib_run <> true then 
-' 	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-' 	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-' 	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-' 	text_from_the_other_script = fso_command.ReadAll
-' 	fso_command.Close
-' 	Execute text_from_the_other_script
-' 	func_lib_run = true
-' end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
-
-' FUNCTION transmit
-' 	EMSendKey "<Enter>"
-' 	EMWaitReady 0,0
-' END FUNCTION
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 FUNCTION abended_function
 	EMReadScreen case_abended, 7, 9, 27
@@ -75,17 +71,37 @@ IF on_dail <> "DAIL" THEN script_end_procedure("You are not in DAIL. Please navi
 
 EMGetCursor read_row, read_column
 
-EMReadScreen is_right_line, 34, read_row, 30
-IF is_right_line <> "BENDEX INFORMATION HAS BEEN STORED" THEN script_end_procedure("You are not on the correct line. Please select a BNDX message on your DAIL.")
 EMReadScreen original_bndx_dail, 30, read_row, 6
 
-EMReadScreen cl_ssn, 9, read_row, 20
+'Check date of message to allow different behaviors
+newFormat = False
+EMReadScreen Message_Dt, 5, 6, 11
+Message_M = CInt(left(Message_Dt, 2))
+Message_Y = CInt(right(Message_Dt, 2))
+If Val(Message_Y) < 22 THEN 
+	EMReadScreen cl_ssn, 9, read_row, 20
 	ssn_first = left(cl_ssn, 3)
 	ssn_first = ssn_first & " "
 	ssn_mid = right(left(cl_ssn, 5), 2)
 	ssn_mid = ssn_mid & " "
 	ssn_end = right(cl_ssn, 4)
 	use_ssn = ssn_first & ssn_mid & ssn_end
+
+Else 
+	IF Val(Message_Y) = 22 and Val(Message_M) < 5 THEN 
+		EMReadScreen cl_ssn, 9, read_row, 20
+		ssn_first = left(cl_ssn, 3)
+		ssn_first = ssn_first & " "
+		ssn_mid = right(left(cl_ssn, 5), 2)
+		ssn_mid = ssn_mid & " "
+		ssn_end = right(cl_ssn, 4)
+		use_ssn = ssn_first & ssn_mid & ssn_end
+	Else	
+		EMReadScreen dail_reference_number, 2, 6, 25
+		newFormat = True
+	END IF
+END IF
+
 search_row = read_row
 
 '========== Collects the case number ==========
@@ -171,13 +187,27 @@ EMWriteScreen "MEMB", 20, 71
 transmit
 
 DO
-	EMReadScreen memb_ssn, 11, 7, 42
-	IF use_ssn = memb_ssn THEN
-		EMReadScreen reference_number, 2, 4, 33
-	ELSE
-		transmit
-	END IF
-LOOP UNTIL use_ssn = memb_ssn
+	IF newFormat = False Then
+		EMReadScreen memb_ssn, 11, 7, 42
+		IF use_ssn = memb_ssn THEN
+			EMReadScreen reference_number, 2, 4, 33
+		ELSE
+			transmit
+		END IF
+	Else 
+		row = 1
+		col = 1
+		EMSearch "Ref Nbr: ", row, col
+		EMReadScreen reference_number, 2, row, col+len("Ref Nbr: ")
+		IF reference_number = dail_reference_number THEN
+			EMReadScreen memb_ssn, 11, 7, 42
+			use_ssn = memb_ssn
+		Else
+			Transmit
+		End IF
+	End if
+	EMReadScreen error_message, len("ENTER A VALID"), 24, 2
+LOOP UNTIL use_ssn = memb_ssn or error_message = "ENTER A VALID"
 
 FOR i = 0 TO num_of_rsdi
 	end_of_unea = ""
