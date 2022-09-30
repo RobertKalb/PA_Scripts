@@ -6,37 +6,40 @@ STATS_manualtime = 225                	'manual run time in seconds
 STATS_denomination = "C"       			'C is for each Case
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " & name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
-' 
-' 'This prompts the user to determine whether an item with verification code ? should be counted on expedited cases
-' 'verif is the variable that was read from maxis, verif_name is the name that will be displayed to user '
-' FUNCTION verif_confirm_message(verif, verif_name)
-' 	IF verif = "?_" or verif = "?" THEN verif_confirm =  msgbox("The " & verif_name & " verification is marked '?' Do you wish to count this amount? Click yes if this is an expedited case and the unverified amount should be budgeted.", vbYesNo)
-' 	IF verif_confirm = vbYes THEN verif = "OT"
-' END FUNCTION
-' '-------------------------------END FUNCTIONS
-' 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("01/17/2017", "Initial version.", "Ilse Ferris, Hennepin County")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+
+'This prompts the user to determine whether an item with verification code ? should be counted on expedited cases
+'verif is the variable that was read from maxis, verif_name is the name that will be displayed to user '
+FUNCTION verif_confirm_message(verif, verif_name)
+	IF verif = "?_" or verif = "?" THEN verif_confirm =  msgbox("The " & verif_name & " verification is marked '?' Do you wish to count this amount? Click yes if this is an expedited case and the unverified amount should be budgeted.", vbYesNo)
+	IF verif_confirm = vbYes THEN verif = "OT"
+END FUNCTION
+'-------------------------------END FUNCTIONS
+
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("03/01/2018", "Changed closing message.", "Ilse Ferris, Hennepin County")
+'("01/10/2018", "Updated coordinates in STAT/JOBS for income type and verification codes.", "Ilse Ferris, Hennepin County")
+'changelog_update("01/17/2017", "Initial version.", "Ilse Ferris, Hennepin County")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'Dialogs----------------------------------------------------------------------------------------------------
 BeginDialog case_number_dialog, 0, 0, 251, 165, "ABAWD FIATer"
@@ -82,12 +85,19 @@ call maxis_case_number_finder(MAXIS_case_number)
 Call MAXIS_footer_finder(initial_month, initial_year)
 
 'inhibits users from these counties from using the script as they are exempt counties. 
+'Here are the X numbers for FFY 2020 (10/1/19-9/30/20):
 If worker_county_code = "x101" OR _
+    worker_county_code = "X103" OR _
+    worker_county_code = "X104" OR _
+    worker_county_code = "X109" OR _
 	worker_county_code = "x111" OR _
 	worker_county_code = "x115" OR _
+	worker_county_code = "x118" OR _
 	worker_county_code = "x129" OR _
+	worker_county_code = "x130" OR _
 	worker_county_code = "x131" OR _
 	worker_county_code = "x133" OR _
+	worker_county_code = "x135" OR _
 	worker_county_code = "x136" OR _
 	worker_county_code = "x139" OR _
 	worker_county_code = "x144" OR _
@@ -95,12 +105,21 @@ If worker_county_code = "x101" OR _
 	worker_county_code = "x148" OR _
 	worker_county_code = "x149" OR _
 	worker_county_code = "x154" OR _
+	worker_county_code = "x157" OR _
 	worker_county_code = "x158" OR _
-	worker_county_code = "x180" THEN
+	worker_county_code = "x160" OR _
+	worker_county_code = "x163" OR _
+	worker_county_code = "x168" OR _
+	worker_county_code = "x177" OR _
+	worker_county_code = "x180" OR _
+	worker_county_code = "x188" OR _
+	worker_county_code = "x192" OR _
+	worker_county_code = "x193" OR _
+	worker_county_code = "x194" THEN
 	script_end_procedure ("Your agency is exempt from ABAWD work requirements. SNAP banked months are not available to your recipients.")
 END IF
 
-DO 
+DO
 	DO
 		err_msg = ""
 		dialog case_number_dialog
@@ -212,10 +231,10 @@ For each ABAWD_memb_number in ABAWD_member_array 'This loop will check that WREG
     			If bene_yr_row = "8"  then counted_date_year = right(DatePart("yyyy", DateAdd("yyyy", -2, date)), 2)
     			If bene_yr_row = "7"  then counted_date_year = right(DatePart("yyyy", DateAdd("yyyy", -3, date)), 2)
     			abawd_counted_months_string = counted_date_month & "/" & counted_date_year
-    
+
     			'reading to see if a month is counted month or not
     			EMReadScreen is_counted_month, 1, bene_yr_row, bene_mo_col
-    
+
     			'counting and checking for counted ABAWD months
     			IF is_counted_month = "X" or is_counted_month = "M" THEN
     				EMReadScreen counted_date_year, 2, bene_yr_row, 14			'reading counted year date
@@ -223,11 +242,11 @@ For each ABAWD_memb_number in ABAWD_member_array 'This loop will check that WREG
     				abawd_info_list = abawd_info_list & ", " & abawd_counted_months_string			'adding variable to list to add to array
     				abawd_counted_months = abawd_counted_months + 1				'adding counted months
     			END IF
-    
+
     			'declaring & splitting the abawd months array
     			If left(abawd_info_list, 1) = "," then abawd_info_list = right(abawd_info_list, len(abawd_info_list) - 1)
     			counted_months_array = Split(abawd_info_list, ",")
-        
+
     			bene_mo_col = bene_mo_col - 4		're-establishing serach once the end of the row is reached
     			IF bene_mo_col = 15 THEN
     				bene_yr_row = bene_yr_row - 1
@@ -237,16 +256,16 @@ For each ABAWD_memb_number in ABAWD_member_array 'This loop will check that WREG
     		LOOP until month_count = 36
     	PF3
     	End if
-		If abawd_counted_months > 3 then 
+		If abawd_counted_months > 3 then
 			EMWriteScreen "x", 13, 57	'enters the ABAWD tracking record
 			transmit
 			confirm_ABAWD_months = Msgbox("More than 3 counted months have been found on the ABAWD tracking record for MEMBER " & ABAWD_memb_number & vbcr & _
 			" Counted ABAWD months are: " & abawd_info_list & vbcr & vbcr & "If this is correct, press OK to continue with the FIAT. Press cancel to stop the script.", vbOkCancel + vbExclamation, "More than 3 counted ABAWD months exist.")
     		IF confirm_ABAWD_months = vbCancel then script_end_procedure("The script has ended. Please review the case and the ABAWD tracking record if you're unsure of the counted ABAWD months on this case.")
 			PF3							'exists the ABAWD tracking record
-		END IF 
+		END IF
 	END If
-Next 
+Next
 'END OF ABAWD MONTHS----------------------------------------------------------------------------------------------------
 
 'The following loop will take the script through each month in the package, from appl month. to CM+1
@@ -267,7 +286,7 @@ For i = 0 to ubound(footer_month_array)
 
 	Call navigate_to_MAXIS_screen("STAT", "HEST")		'<<<<< Navigates to STAT/HEST
 	EMReadScreen HEST_heat, 6, 13, 75 					'<<<<< Pulls information from the prospective side of HEAT/AC standard allowance
-	
+
 	IF HEST_heat <> "      " then						'<<<<< If there is an amount on the hest line then the electric and phone allowances are not used
 		HEST_elect = ""
 		HEST_phone = ""				'<<<<< Ignores the electric and phone standards if HEAT/AC is used
@@ -615,8 +634,10 @@ For i = 0 to ubound(footer_month_array)
 	  Text 20, 50, 30, 10, "WAGES:"
 	EndDialog
 
-  'This calls the dialog to allow worke r to confirm
+  'This calls the dialog to allow worker to confirm
 	DO
+	    HH_memb = "01"
+        HH_memb_row = 5 'This helps the navigation buttons work!
 		dialog income_deductions_dialog
 		cancel_confirmation
 		MAXIS_dialog_navigation
@@ -693,8 +714,8 @@ For i = 0 to ubound(footer_month_array)
 	Transmit
 	EMReadscreen net_check, 3, 24, 40 'sometimes this test needs to be passed, sometimes n/a.  the transmit triggers an error msg if it needs to pass this'
 	IF net_check = "NET" THEN EMWritescreen "PASSED", 14, 7
-	PF3		
-	
+	PF3
+
 	'Now the BUDGET (FFB1) NO
 	'First, blank out existing values to avoid an error from existing info
 	EMWriteScreen "         ", 5, 32

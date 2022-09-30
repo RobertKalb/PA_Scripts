@@ -6,38 +6,40 @@ STATS_manualtime = 30                	'manual run time in seconds
 STATS_denomination = "I"       		'I is for each ITEM
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("01/25/2017", "Fixed critical bug. Updated handling to allow inputting bills for cases that do not have a BILS panel already.", "Ilse Ferris, Hennepin County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'DIALOGS----------------------------------------------------------------------------------------------------
-BeginDialog BILS_case_number_dialog, 0, 0, 161, 57, "BILS case number dialog"
-  EditBox 95, 0, 60, 15, MAXIS_case_number
-  CheckBox 15, 20, 130, 10, "Check here to update existing BILS.", updating_existing_BILS_check
+BeginDialog BILS_case_number_dialog, 0, 0, 161, 60, "BILS case number dialog"
+  EditBox 95, 5, 60, 15, MAXIS_case_number
+  CheckBox 15, 25, 130, 10, "Check here to update existing BILS.", updating_existing_BILS_check
   ButtonGroup ButtonPressed
-    OkButton 25, 35, 50, 15
-    CancelButton 85, 35, 50, 15
-  Text 5, 5, 85, 10, "Enter your case number:"
+    OkButton 25, 40, 50, 15
+    CancelButton 85, 40, 50, 15
+  Text 5, 10, 85, 10, "Enter your case number:"
 EndDialog
 
 BeginDialog BILS_updater_abbreviated_dialog, 0, 0, 161, 182, "BILS updater (abbreviated)"
@@ -140,12 +142,15 @@ EMConnect ""
 call MAXIS_case_number_finder(MAXIS_case_number)
 
 'Ask for case number, validate that it's numeric.
-Do
-	Dialog BILS_case_number_dialog	'FYI: Dialog includes checkbox for simply updating existing bills, instead of adding new ones.
-	cancel_confirmation
-	Call check_for_MAXIS(True)
-	If isnumeric(MAXIS_case_number) = False then MsgBox "Enter a valid MAXIS case number."
-Loop until isnumeric(MAXIS_case_number) = True
+Do 	
+	Do
+		Dialog BILS_case_number_dialog	'FYI: Dialog includes checkbox for simply updating existing bills, instead of adding new ones.
+		cancel_confirmation
+		Call check_for_MAXIS(True)
+		If isnumeric(MAXIS_case_number) = False then MsgBox "Enter a valid MAXIS case number."
+	Loop until isnumeric(MAXIS_case_number) = True
+	CALL check_for_password(are_we_passworded_out)			'function that checks to ensure that the user has not passworded out of MAXIS, allows user to password back into MAXIS
+Loop until are_we_passworded_out = false					'loops until user passwords back in
 
 'checking for an active MAXIS session
 Call check_for_MAXIS(False)
@@ -160,39 +165,19 @@ budget_begin = replace(trim(budget_begin), " ", "/")	'MM/DD format, trims the EM
 EMReadScreen budget_end, 5, 10, 46
 budget_end = replace(trim(budget_end), " ", "/")	'MM/DD format, trims the EMReadScreen to ignore strings that are all spaces (implies no budget period established, case may be pending)
 
-
 'Gets to BILS, checks for ability to edit/creates new panel
 call navigate_to_MAXIS_screen("STAT", "BILS")
-'checking to see if BILS panel exists, if not, then one is created
-EMReadScreen BILS_panel_check, 1, 3, 73
-'if BILS panel is not able to update due to no HC or case not in agency, script will end
-IF BILS_panel_check <> "0" THEN	'if panel exists then puts panel into edit mode
-	PF9
-ELSEIF BILS_panel_check = "0" THEN	'if panel does not exist, creates new panel
-	EMWriteScreen "NN", 20, 79
-	Needs_new_check = TRUE  'checking to see if a new panel has been created
-	Transmit
-	EMReadScreen error_msg_check, 47, 24, 2
-	IF error_msg_check = "HC STATUS IS INACTIVE, YOU CANNOT ADD OR UPDATE" Then 'if cannot add BILS panel, script will stop
-		script_end_procedure ("This case is either not active on HC, or you do not have access to update this case.")
-	END IF
-END IF
-
-'Navigating back to most recent bills so worker can more easily view them while entering info into the dialog
-IF Needs_new_check <> TRUE THEN   'if a new panel hasn't been created
-	Do
-		PF19
-		EMReadScreen first_page_check, 4, 24, 20
-	Loop until first_page_check = "PAGE"
-	Transmit 'this transmit will leave edit mode but it will allow the future pf9s to get back to a place the script can edit.
-END IF
 
 'IF THE WORKER REQUESTED TO UPDATE EXISTING BILS, THE SCRIPT STARTS AN ABBREVIATED IF/THEN STATEMENT----------------------------------------------------------------------------------------------------
 If updating_existing_BILS_check = checked then
 
-	'DIALOG RUNS, PUTS BILS ON EDIT MODE AND CHECKS FOR PASSWORD PROMPT
-	Dialog BILS_updater_abbreviated_dialog
-	cancel_confirmation
+	Do 
+		'DIALOG RUNS, PUTS BILS ON EDIT MODE AND CHECKS FOR PASSWORD PROMPT
+		Dialog BILS_updater_abbreviated_dialog
+		cancel_confirmation
+		CALL check_for_password(are_we_passworded_out)			'function that checks to ensure that the user has not passworded out of MAXIS, allows user to password back into MAXIS
+	Loop until are_we_passworded_out = false					'loops until user passwords back in
+	
 	PF9
 	EMReadScreen BILS_check, 4, 2, 54
 	If BILS_check <> "BILS" then script_end_procedure("BILS not found. Did you navigate away from BILS? Did you get passworded out? The script will now close.")
@@ -268,35 +253,50 @@ If updating_existing_BILS_check = checked then
 End if
 
 'IF THE WORKER REQUESTED TO ADD NEW BILS, THE SCRIPT STARTS THE ADVANCED DIALOG----------------------------------------------------------------------------------------------------
+Do 
+    Do
+    	DO
+    		Dialog BILS_updater_dialog
+    		cancel_confirmation
+    		Call check_for_MAXIS(False)
+    		IF isdate(budget_begin) = False OR isdate(budget_end) = False THEN MsgBox "Your budget range includes dates that are not valid. Please double check your budget months and years before continuing to ensure the script works properly."
+    	LOOP UNTIL isdate(budget_begin) = True AND isdate(budget_end) = True
+    	'Checking to see if the user added verifications. BILS requires that, without it it'll red up and error out.
+    	If (ref_nbr_actual_01 <> "" and ver_actual_01 = " ") or _
+    	 (ref_nbr_actual_02 <> "" and ver_actual_02 = " ") or _
+    	 (ref_nbr_actual_03 <> "" and ver_actual_03 = " ") or _
+    	 (ref_nbr_recurring_01 <> "" and ver_recurring_01 = " ") or _
+    	 (ref_nbr_recurring_02 <> "" and ver_recurring_02 = " ") or _
+    	 (ref_nbr_recurring_03 <> "" and ver_recurring_03 = " ") or _
+    	 (ref_nbr_recurring_04 <> "" and ver_recurring_04 = " ") or _
+    	 (ref_nbr_recurring_05 <> "" and ver_recurring_05 = " ") or _
+    	 (ref_nbr_recurring_06 <> "" and ver_recurring_06 = " ") then
+    		MsgBox "Make sure you select a verification for all indicated BILS. BILS requires an entry here. You can add it in the ''ver'' column."
+    		dialog_validation_complete = False		'Simplifying this for the do...loop, rather than typing all possible iterations of the above that could be valid.
+    	Else
+    		dialog_validation_complete = True
+    	End if
+    Loop until dialog_validation_complete = True
+	CALL check_for_password(are_we_passworded_out)			'function that checks to ensure that the user has not passworded out of MAXIS, allows user to password back into MAXIS
+Loop until are_we_passworded_out = false					'loops until user passwords back in
 
-Do
-	DO
-		Dialog BILS_updater_dialog
-		cancel_confirmation
-		Call check_for_MAXIS(False)
-		IF isdate(budget_begin) = False OR isdate(budget_end) = False THEN MsgBox "Your budget range includes dates that are not valid. Please double check your budget months and years before continuing to ensure the script works properly."
-	LOOP UNTIL isdate(budget_begin) = True AND isdate(budget_end) = True
-	'Checking to see if the user added verifications. BILS requires that, without it it'll red up and error out.
-	If (ref_nbr_actual_01 <> "" and ver_actual_01 = " ") or _
-	 (ref_nbr_actual_02 <> "" and ver_actual_02 = " ") or _
-	 (ref_nbr_actual_03 <> "" and ver_actual_03 = " ") or _
-	 (ref_nbr_recurring_01 <> "" and ver_recurring_01 = " ") or _
-	 (ref_nbr_recurring_02 <> "" and ver_recurring_02 = " ") or _
-	 (ref_nbr_recurring_03 <> "" and ver_recurring_03 = " ") or _
-	 (ref_nbr_recurring_04 <> "" and ver_recurring_04 = " ") or _
-	 (ref_nbr_recurring_05 <> "" and ver_recurring_05 = " ") or _
-	 (ref_nbr_recurring_06 <> "" and ver_recurring_06 = " ") then
-		MsgBox "Make sure you select a verification for all indicated BILS. BILS requires an entry here. You can add it in the ''ver'' column."
-		dialog_validation_complete = False		'Simplifying this for the do...loop, rather than typing all possible iterations of the above that could be valid.
-	Else
-		dialog_validation_complete = True
-	End if
-Loop until dialog_validation_complete = True
-
-
-call navigate_to_MAXIS_screen("stat", "bils") 'In case the worker navigated out.
-PF9			'Edits panel
-
+'checking to see if BILS panel exists, if not, then one is created
+EMReadScreen BILS_panel_check, 1, 3, 73
+'if BILS panel is not able to update due to no HC or case not in agency, script will end
+IF BILS_panel_check <> "0" THEN	'if panel exists then puts panel into edit mode
+	PF9
+	Do
+		PF19
+		EMReadScreen first_page_check, 4, 24, 20
+	Loop until first_page_check = "PAGE"
+ELSEIF BILS_panel_check = "0" THEN	'if panel does not exist, creates new panel
+	EMWriteScreen "NN", 20, 79
+	Transmit
+	EMReadScreen error_msg_check, 47, 24, 2
+	IF error_msg_check = "HC STATUS IS INACTIVE, YOU CANNOT ADD OR UPDATE" Then 'if cannot add BILS panel, script will stop
+		script_end_procedure ("This case is either not active on HC, or you do not have access to update this case.")
+	END IF
+END IF
 
 'Cleaning up date field
 budget_begin = replace(budget_begin, ".", "/")		'in case worker used periods instead of slashes
@@ -306,9 +306,7 @@ budget_end = replace(budget_end, "-", "/")
 
 'Adding the "01" in to the begin and end dates for the budget selector
 budget_begin = replace(budget_begin, "/", "/01/")
-
 budget_end = replace(budget_end, "/", "/01/")
-
 
 'Using working_date as a variable, it will now determine each footer month between the budget period start and end
 working_date = budget_begin											'starting with the first month
@@ -319,7 +317,6 @@ For i = 0 to total_months											'For each one of those blank elements...
 	all_possible_dates_array(i) = working_date						'...the element should be the working date, and...
 	working_date = DateAdd("m", 1, working_date)					'...the working date should increase by one month.
 Next
-
 
 'Here, the script will force insurance premiums to be an "h" type bill, and remedial care will be a "p" type bill.
 If serv_type_actual_01 = "25 Medicare Prem" or serv_type_actual_01 = "26 Dental or Health Prem" then bill_type_actual_01 = "H"
@@ -340,7 +337,6 @@ If serv_type_recurring_05 = "25 Medicare Prem" or serv_type_recurring_05 = "26 D
 If serv_type_recurring_05 = "27 Remedial Care" then bill_type_recurring_05 = "P"
 If serv_type_recurring_06 = "25 Medicare Prem" or serv_type_recurring_06 = "26 Dental or Health Prem" then bill_type_recurring_06 = "H"
 If serv_type_recurring_06 = "27 Remedial Care" then bill_type_recurring_06 = "P"
-
 
 MAXIS_row = 6 'Setting the variable for the following do loop
 

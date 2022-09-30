@@ -6,30 +6,32 @@ STATS_manualtime = 473                	'manual run time in seconds
 STATS_denomination = "C"       		'C is for each CASE
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
-' 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' 'CALL changelog_update("01/11/2017", "The script has been updated to write to the GRH PIC and to case note that the GRH PIC has been updated.", "Robert Fewins-Kalb, Anoka County")
-' 'call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("01/10/2018", "Updated coordinates in STAT/JOBS for income type and verification codes.", "Ilse Ferris, Hennepin County")
+'("01/11/2017", "The script has been updated to write to the GRH PIC and to case note that the GRH PIC has been updated.", "Robert Fewins-Kalb, Anoka County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'CUSTOM FUNCTIONS
 Function prospective_averager(pay_date, gross_amt, hours, paystubs_received, total_prospective_pay, total_prospective_hours) 'Creates variables for total_prospective_pay and total_prospective_hours
@@ -127,7 +129,7 @@ FUNCTION create_paystubs_received_dialog(worker_signature, number_of_paystubs, p
 					If isdate(paystubs_array(i, 0)) = False AND paystubs_array(i, 0) <> "" THEN err_msg = err_msg & vbCr & "* Your pay date must be ''MM/DD/YYYY'' format. Please try again."
 				NEXT
 				FOR i = 0 TO (number_of_paystubs - 1)
-					If isdate(paystubs_array(i, 0)) = True AND datediff("d", date, paystubs_array(i, 0)) >= 0 THEN err_msg = err_msg & vbCr & "* You cannot enter a paydate in the future. Please remove and try again."
+					If isdate(paystubs_array(i, 0)) = True AND datediff("d", date, paystubs_array(i, 0)) > 0 THEN err_msg = err_msg & vbCr & "* You cannot enter a paydate in the future. Please remove and try again."
 				NEXT
 				FOR i = 0 TO (number_of_paystubs - 1)
 					If isdate(paystubs_array(i, 0)) = True and (Isnumeric(paystubs_array(i, 1)) = False or Isnumeric(paystubs_array(i, 2)) = False) then err_msg = err_msg & vbCr & "* You must include a gross pay amount as well as an hours amount."
@@ -408,17 +410,17 @@ Do
 			transmit
 		END IF
     End if
-	
+
 	'going into the GRH PIC to update...
-	IF update_GRH_PIC_check = 1 THEN 
+	IF update_GRH_PIC_check = 1 THEN
 		'checking to make sure that the user has the case in a benefit month that includes the GRH PIC... 07/16 is the first month...
 		EMReadScreen grh_pic, 7, 19, 73
-		IF grh_pic <> "GRH PIC" THEN 
+		IF grh_pic <> "GRH PIC" THEN
 			MsgBox "*** NOTICE!!! ***" & vbCr & vbCr & "You are attempting to update the GRH PIC in a budget month prior to the implementation of the GRH PIC on STAT/JOBS. The script will skip attempting to update the GRH PIC for this month.", vbExclamation
 		ELSE
 			'else, going in to the GRH PIC
 			CALL write_value_and_transmit("X", 19, 71)
-			
+
 			'erasing the information currently in the GRH PIC
 			EMWriteScreen "_", 3, 63		'pay frequency
 			EMWriteScreen "______", 6, 63		'hrs/wk
@@ -427,19 +429,19 @@ Do
 			FOR row = 7 to 16
 				EMWriteScreen "__", row, 9
 				EMWriteScreen "__", row, 12
-				EMWriteScreen "__", row, 15    
+				EMWriteScreen "__", row, 15
 				EMWriteScreen "________", row, 21
 			NEXT
-			
+
 			'writing today's date in the Date of Calculation field
 			CALL create_mainframe_friendly_date(date, 3, 30, "YY")
-			
+
 			'writing the pay frequency
 			If pay_frequency = "One Time Per Month" then 	EMWriteScreen "1", 3, 63
 			If pay_frequency = "Two Times Per Month" then 	EMWriteScreen "2", 3, 63
 			If pay_frequency = "Every Other Week" then 		EMWriteScreen "3", 3, 63
 			If pay_frequency = "Every Week" then 			EMWriteScreen "4", 3, 63
-			
+
 			'updating income lines
 			GRH_PIC_row = 7
 			'Uses function to add each PIC pay date, income, and hours. Doesn't add any if they show "01/01/2000" as those are dummy numbers
@@ -455,13 +457,13 @@ Do
 			EMReadScreen avg_grh_income, 39, 16, 38
 			EMReadScreen grh_prosp_monthly, 42, 17, 35
 			PF3
-		END IF	
+		END IF
 	END IF
 
 	'Clears JOBS data before updating the JOBS panel
 	EMSetCursor 12, 25
 	EMSendKey "___________________________________________________________________________________________________________________________________________________"
-	
+
 	'Updates for retrospective income by checking each pay date's month against the footer month using a function. If the footer month is two months ahead of the pay month it will add to JOBS and keep a tally of hours.
 	MAXIS_row = 12 'Needs this for the following functions
 	Dim retro_hours
@@ -566,10 +568,12 @@ Do
 
 	'Puts pay verification type in
 	IF ((MAXIS_footer_month * 1) >= 10 AND (MAXIS_footer_year * 1) >= "16") OR (MAXIS_footer_year = "17") THEN
-		EMWriteScreen left(JOBS_verif_code, 1), 6, 34
+	EMWriteScreen left(JOBS_verif_code, 1), 6, 38
 	ELSE
-		EMWriteScreen left(JOBS_verif_code, 1), 6, 38
+		EMWriteScreen left(JOBS_verif_code, 1), 6, 34
 	END IF
+	
+	
 
 	'If the footer month is the current month + 1, the script needs to update the HC popup for HC cases.
 	If update_HC_popup_check = 1 and datediff("m", date, MAXIS_footer_month & "/01/" & MAXIS_footer_year) = 1 then
@@ -650,7 +654,7 @@ If update_PIC_check = 1 then
 	call write_variable_in_CASE_NOTE(worker_signature)
 End if
 
-IF update_GRH_PIC_check = 1 THEN 
+IF update_GRH_PIC_check = 1 THEN
 	start_a_blank_CASE_NOTE
 	CALL write_variable_in_CASE_NOTE("~~~GRH PIC: " & date & "~~~")
 	CALL write_variable_in_CASE_NOTE("Pay Date    Gross Amt")

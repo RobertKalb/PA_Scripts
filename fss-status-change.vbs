@@ -6,29 +6,31 @@ STATS_manualtime = 270                	'manual run time in seconds
 STATS_denomination = "I"       		'I is for Item
 'END OF stats block=========================================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM GITHUB REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("03/01/2018", "Bug fixes - dialog length, date format issue, script suspending users", "Casey Love, Hennepin County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'DIALOGS ===================================================================================================================
 BeginDialog fss_status_dialog, 0, 0, 221, 265, "FSS Status Update"
@@ -424,6 +426,8 @@ END FUNCTION
 
 EMConnect ""
 
+Call check_for_maxis(True)
+
 IF worker_county_code = "x162" Then Ramsey_County_case = TRUE
 Call MAXIS_case_number_finder(MAXIS_case_number)		'Looks for a case number
 
@@ -454,13 +458,13 @@ transmit
 EMReadScreen current_emps_status, 38, 15, 40		'Find the emps status
 current_emps_status = trim(current_emps_status)
 CALL Navigate_to_MAXIS_screen ("STAT", "MEMI")
-EMReadScreen current_fvw, 2, 18, 55					'Reads the code if there is a family violence waiver currently coded
+EMReadScreen current_fvw, 2, 17, 78					'Reads the code if there is a family violence waiver currently coded
 
 new_fvw = TRUE 										'setting the default for these variables
 new_fss = FALSE
 
-If current_emps_status = "20 (UP) Universal Participation" Then new_fss = TRUE	'If currently a universal partcipant, then the FSS coding is New
-If current_fvw = "18" Then new_fvw = FALSE 			'If waiver code is 02 on MEMI then the FVW is a renewal
+If current_emps_status = "20 (UP) Universal Participation" Then new_fss = TRUE	'If currently a universal participant, then the FSS coding is New
+If current_fvw = "02" Then new_fvw = FALSE 			'If waiver code is 02 on MEMI then the FVW is a renewal
 
 If child_under_one_checkbox = checked then 			'Looking for a baby on the case if child under 1 is checked
 	baby_on_case = FALSE							'Defaults to false
@@ -523,10 +527,10 @@ If child_under_one_checkbox = checked Then 				'If child under 1 is requested, g
 		End If
 	Loop Until emps_row = 10							'There are only 3 rows of data
 	If emps_exemption_month_used <> "" Then
-		emps_exemption_month_used = right(emps_exemption_month_used, len(emps_exemption_month_used)-1)	'lops off the extra ~ at the beginning
+		emps_exemption_month_used = right(emps_exemption_month_used, len(emps_exemption_month_used)-1)	'chop off the extra ~ at the beginning
 		used_expemption_months_array = split(emps_exemption_month_used, "~")							'creates an array for the counting
 		months_for_use = Join(used_expemption_months_array, ", ")										'creates a string of months used for case noting
-		number_of_months_available = 12 - (ubound(used_expemption_months_array) + 1) & ""				'uses the ubound of the array to determine how many months are left to be used
+		number_of_months_available = 12 - (ubound(used_expemption_months_array) + 1) & ""				'uses the unbound of the array to determine how many months are left to be used
 	Else
 		months_for_use = "NONE"
 		number_of_months_available = 12
