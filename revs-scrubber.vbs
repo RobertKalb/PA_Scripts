@@ -6,29 +6,31 @@ STATS_manualtime = 304			 'manual run time in seconds
 STATS_denomination = "C"		 'C is for each case
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("1/2/2018", "Fixing bug that prevented the script from writing SPEC/MEMO due to MAXIS updates.", "Casey Love, Ramsey County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'Declaring variables----------------------------------------------------------------------------------------------------
 'DIM month, full_date_to_display, num_of_days, next_month, available_dates_array, month_to_use
@@ -633,15 +635,21 @@ DO 								'looping until it meets a blank excel cell without a case number
 	If county_code <> "x127" then
 		'Grabbing the phone number from ADDR
 		CALL navigate_to_MAXIS_screen("STAT", "ADDR")
-		EMReadScreen area_code, 3, 17, 45
-		EMReadScreen remaining_digits, 9, 17, 50
+		'EMReadScreen area_code, 3, 17, 45
+		EMReadScreen area_code, 3, 16, 39
+		'EMReadScreen remaining_digits, 9, 17, 50
+		EMReadScreen remaining_digits, 9, 16, 45
 		IF area_code = "___" THEN 'Reading phone 2 in case it is the only entered number
-			EMReadScreen area_code, 3, 18, 45
-			EMReadScreen remaining_digits, 9, 18, 50
+			'EMReadScreen area_code, 3, 18, 45
+			EMReadScreen area_code, 3, 17, 39
+			'EMReadScreen remaining_digits, 9, 18, 50
+			EMReadScreen remaining_digits, 9, 17, 45
 		END IF
 		IF area_code = "___" THEN
-			EMReadScreen area_code, 3, 19, 45 ' reading phone 3
-			EMReadScreen remaining_digits, 9, 19, 50
+			'EMReadScreen area_code, 3, 19, 45 ' reading phone 3
+			EMReadScreen area_code, 3, 18, 39 ' reading phone 3
+			'EMReadScreen remaining_digits, 9, 19, 50
+			EMReadScreen remaining_digits, 9, 18, 45
 		END IF
 		phone_number = area_code & remaining_digits
 		phone_number = replace(phone_number, "_", " ") 'replaces _ to blank space so it can work with if statements looking for no phone numbers which looks for 12 spaces
@@ -696,38 +704,9 @@ DO 								'looping until it meets a blank excel cell without a case number
 
 	ELSE			'ELSE in this case is LIVE cases, not testing in developer mode
 
-		CALL navigate_to_MAXIS_screen("SPEC", "MEMO")
-		PF5
-		EMReadScreen memo_display_check, 12, 2, 33
-		If memo_display_check = "Memo Display" then script_end_procedure("You are not able to go into update mode. Did you enter in inquiry by mistake? Please try again in production.")
-		'Checking for AREP if found sending memo to them as well
-		row = 4
-		col = 1
-		EMSearch "ALTREP", row, col
-		IF row > 4 THEN
-			arep_row = row
-			CALL navigate_to_MAXIS_screen("STAT", "AREP")
-			EMReadscreen forms_to_arep, 1, 10, 45
-			call navigate_to_MAXIS_screen("SPEC", "MEMO")
-			PF5
-		END IF
-
-		'Checking for SWKR if found sending MEMO to them as well
-		row = 4
-		col = 1
-		EMSearch "SOCWKR", row, col
-		IF row > 4 THEN
-			swkr_row = row
-			call navigate_to_MAXIS_screen("STAT", "SWKR")
-			EMReadscreen forms_to_swkr, 1, 15, 63
-			call navigate_to_MAXIS_screen("SPEC", "MEMO")
-			PF5
-		END IF
-
-		EMWriteScreen "x", 5, 10
-		IF forms_to_arep = "Y" THEN EMWriteScreen "x", arep_row, 10
-		IF forms_to_swkr = "Y" THEN EMWriteScreen "x", swkr_row, 10
-		transmit
+		'Navigating to SPEC/MEMO and starting a new memo
+		start_a_new_spec_memo
+		
 		'Writing the appointment and letter into a memo
 		EMSendKey("************************************************************")
 		CALL write_variable_in_SPEC_MEMO("The State DHS sent you a packet of paperwork. This is renewal paperwork for your SNAP case. Your SNAP case is set to close on " &  last_day_of_recert & ". Please sign, date and return your renewal paperwork by " & left(CM_plus_1_mo, 2) & "/08/" & right(CM_plus_1_yr, 2) & ".")

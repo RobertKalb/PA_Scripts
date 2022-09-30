@@ -6,44 +6,43 @@ STATS_manualtime = 72                      'manual run time in seconds
 STATS_denomination = "C"       							'C is for each CASE
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("01/25/2018", "Entering a supervisor X-Number in the Workers to Check will pull all X-Numbers listed under that supervisor in MAXIS. Addiional bug fix where script was missing cases.", "Casey Love, Hennepin County")
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'This function is used to grab all active X numbers according to the supervisor X number(s) inputted
 FUNCTION create_array_of_all_active_x_numbers_by_supervisor(array_name, supervisor_array)
 	'Getting to REPT/USER
 	CALL navigate_to_MAXIS_screen("REPT", "USER")
 
-
 	'Sorting by supervisor
 	PF5
 	PF5
 
-
 	'Reseting array_name
 	array_name = ""
-
 
 	'Splitting the list of inputted supervisors...
 	supervisor_array = replace(supervisor_array, " ", "")
@@ -52,7 +51,6 @@ FUNCTION create_array_of_all_active_x_numbers_by_supervisor(array_name, supervis
 		IF unit_supervisor <> "" THEN
 			'Entering the supervisor number and sending a transmit
 			CALL write_value_and_transmit(unit_supervisor, 21, 12)
-
 
 			MAXIS_row = 7
 			DO
@@ -212,6 +210,7 @@ ReDim spenddown_error_array (12, 0)
 
 'Setting the variable for what's to come
 excel_row = 2
+all_case_numbers_array = "*"
 hc_clt = 0
 
 'Getting all the cases with HC active for each worker
@@ -242,10 +241,11 @@ For each worker in worker_array
 				EMReadScreen HC_status, 1, MAXIS_row, 64			'Reading HC status
 
 				'Doing this because sometimes BlueZone registers a "ghost" of previous data when the script runs. This checks against an array and stops if we've seen this one before.
-				If trim(MAXIS_case_number) <> "" and instr(all_case_numbers_array, MAXIS_case_number) <> 0 then exit do
-				all_case_numbers_array = trim(all_case_numbers_array & " " & MAXIS_case_number)
+				MAXIS_case_number = trim(MAXIS_case_number)
+				If MAXIS_case_number <> "" and instr(all_case_numbers_array, "*" & MAXIS_case_number & "*") <> 0 then exit do
+				all_case_numbers_array = trim(all_case_numbers_array & MAXIS_case_number & "*")
 
-				If MAXIS_case_number = "        " then exit do			'Exits do if we reach the end
+				If MAXIS_case_number = "" Then Exit Do			'Exits do if we reach the end
 
 				'Using if...thens to decide if a case should be added (status isn't blank or inactive and respective box is checked)
 				If HC_status = "A" then
@@ -291,7 +291,12 @@ For hc_case = 0 to UBound(clts_with_spdwn_array, 2)
 		If prog = "MA" Then
 			EMWriteScreen "X", row, 26		'Goes into it
 			transmit
-			Exit Do
+			EMReadScreen panel_check, 4, 3, 57
+			If panel_check = "BSUM" Then
+				Exit Do
+			Else
+				Transmit
+			End If
 		End if
 		row = row + 1
 	Loop until row = 20
@@ -481,6 +486,8 @@ For spd_case = 0 to UBound(spenddown_error_array, 2)
 				meth = ""
 			End If
 			spd_amt = 0
+			tot_net_inc = 0
+			tot_std_inc = 0
 			col = 18
 			Do 				'This will gather the 6 month standard AND the budgeted income to calculate the HC overage
 				EMReadScreen month_net_inc, 8, 15, col

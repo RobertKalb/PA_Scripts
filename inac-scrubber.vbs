@@ -6,29 +6,31 @@ STATS_manualtime = 169                               'manual run time in seconds
 STATS_denomination = "C"       'C is for each CASE
 'END OF stats block==============================================================================================
 
-'Because we are running these locally, we are going to get rid of all the calls to GitHub...
-if func_lib_run <> true then 
-	FuncLib_URL = "I:\Blue Zone Scripts\Functions Library.vbs"
-	Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
-	Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
-	text_from_the_other_script = fso_command.ReadAll
-	fso_command.Close
-	Execute text_from_the_other_script
-	func_lib_run = true
-end if
+
+'LOADING FUNCTIONS LIBRARY FROM REPOSITORY===========================================================================
+IF IsEmpty(FuncLib_URL) = TRUE THEN	'Shouldn't load FuncLib if it already loaded once
+	IF run_locally = FALSE or run_locally = "" THEN	   'If the scripts are set to run locally, it skips this and uses an FSO below.
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		critical_error_msgbox = MsgBox ("The Functions Library code was not able to be reached by " &name_of_script & vbNewLine & vbNewLine &_
+                                            "FuncLib URL: " & FuncLib_URL & vbNewLine & vbNewLine &_
+                                            "The script has stopped. Send issues to " & contact_admin , _
+                                            vbOKonly + vbCritical, "BlueZone Scripts Critical Error")
+            StopScript
+	ELSE
+		FuncLib_URL = script_repository & "MAXIS FUNCTIONS LIBRARY.vbs"
+		Set run_another_script_fso = CreateObject("Scripting.FileSystemObject")
+		Set fso_command = run_another_script_fso.OpenTextFile(FuncLib_URL)
+		text_from_the_other_script = fso_command.ReadAll
+		fso_command.Close
+		Execute text_from_the_other_script
+	END IF
+END IF
 'END FUNCTIONS LIBRARY BLOCK================================================================================================
 
-' 'CHANGELOG BLOCK ===========================================================================================================
-' 'Starts by defining a changelog array
-' changelog = array()
-' 
-' 'INSERT ACTUAL CHANGES HERE, WITH PARAMETERS DATE, DESCRIPTION, AND SCRIPTWRITER. **ENSURE THE MOST RECENT CHANGE GOES ON TOP!!**
-' 'Example: call changelog_update("01/01/2000", "The script has been updated to fix a typo on the initial dialog.", "Jane Public, Oak County")
-' call changelog_update("11/28/2016", "Initial version.", "Charles Potter, DHS")
-' 
-' 'Actually displays the changelog. This function uses a text file located in the My Documents folder. It stores the name of the script file and a description of the most recent viewed change.
-' changelog_display
-' 'END CHANGELOG BLOCK =======================================================================================================
+'CHANGELOG BLOCK ===========================================================================================================
+'("10/16/2019", "All infrastructure changed to run locally and stored in BlueZone Scripts ccm. MNIT @ DHS)
+'("11/28/2016", "Initial version.", "Charles Potter, DHS")
+'END CHANGELOG BLOCK =======================================================================================================
 
 'THE FOLLOWING VARIABLE IS DYNAMICALLY DETERMINED BY THE PRESENCE OF DATA IN CLS_x1_number. IT WILL BE ADDED DYNAMICALLY TO THE DIALOG BELOW.
 If CLS_x1_number <> "" then CLS_dialog_string = "**This script will XFER cases in REPT/INAC to " & CLS_x1_number & ".**"
@@ -155,7 +157,7 @@ End if
 
 'Checks to make sure the worker has cases to close. If not the script will end.
 EMReadScreen worker_has_cases_to_close_check, 16, 7, 14
-If worker_has_cases_to_close_check = "                " then script_end_procedure("This worker does not appear to have any cases to close. If there are cases here email the script alpha user a description of the problem and your worker number.")
+If worker_has_cases_to_close_check = "                " then script_end_procedure("This worker does not appear to have any cases to close. If there are cases here, email a description of the problem and your worker number to " & contact_admin)
 
 'Notifies the worker that we're about to create a Word document.
 word_warning = MsgBox("The script is about to start a Word document. This may take a few moments.", vbOKCancel)
@@ -164,24 +166,24 @@ If word_warning = vbCancel then stopscript
 'Before creating the Word document, we create an Excel spreadsheet that runs behind the scenes to collect the case numbers. It's easier to work off of an Excel spreadsheet than an array (for debugging purposes). An array would be faster, however.
 
 'Loads Excel document for developer_mode only
-' If developer_mode = True then
-' 	Set objExcel = CreateObject("Excel.Application")
-' 	objExcel.Visible = True
-' 	Set objWorkbook = objExcel.Workbooks.Add()
-' 	objExcel.DisplayAlerts = True
-' 
-' 	'Assigning values to the Excel spreadsheet.
-' 	ObjExcel.Cells(1, 1).Value = "MAXIS number"
-' 	ObjExcel.Cells(1, 2).Value = "Name"
-' 	ObjExcel.Cells(1, 3).Value = "INAC eff date"
-' 	ObjExcel.Cells(1, 4).Value = "Amount due in claims"
-' 	ObjExcel.Cells(1, 5).Value = "DAILs?"
-' 	ObjExcel.Cells(1, 6).Value = "MMIS?"
-' 	ObjExcel.Cells(1, 7).Value = "PMIs"
-' 	ObjExcel.Cells(1, 8).Value = "Privileged?"
-' 	ObjExcel.Cells(1, 9).Value = "HC renewal closure?"
-' 	objExcel.Cells(1, 10).Value = "Transfer Case?"
-' End if
+If developer_mode = True then
+	Set objExcel = CreateObject("Excel.Application")
+	objExcel.Visible = True
+	Set objWorkbook = objExcel.Workbooks.Add()
+	objExcel.DisplayAlerts = True
+
+	'Assigning values to the Excel spreadsheet.
+	ObjExcel.Cells(1, 1).Value = "MAXIS number"
+	ObjExcel.Cells(1, 2).Value = "Name"
+	ObjExcel.Cells(1, 3).Value = "INAC eff date"
+	ObjExcel.Cells(1, 4).Value = "Amount due in claims"
+	ObjExcel.Cells(1, 5).Value = "DAILs?"
+	ObjExcel.Cells(1, 6).Value = "MMIS?"
+	ObjExcel.Cells(1, 7).Value = "PMIs"
+	ObjExcel.Cells(1, 8).Value = "Privileged?"
+	ObjExcel.Cells(1, 9).Value = "HC renewal closure?"
+	objExcel.Cells(1, 10).Value = "Transfer Case?"
+End if
 
 'Now it creates a Word document to store all of the active claims.
 Set objWord = CreateObject("Word.Application")
@@ -250,9 +252,9 @@ For x = 0 to total_cases
 	INAC_scrubber_primary_array(x, 1) = interim_array(1)	'The client_name
 	INAC_scrubber_primary_array(x, 2) = interim_array(2)	'The inac_date
 	If developer_mode = True then
-		' ObjExcel.Cells(x + 2, 1).Value = INAC_scrubber_primary_array(x, 0)
-		' ObjExcel.Cells(x + 2, 2).Value = INAC_scrubber_primary_array(x, 1)
-		' ObjExcel.Cells(x + 2, 3).Value = INAC_scrubber_primary_array(x, 2)
+		ObjExcel.Cells(x + 2, 1).Value = INAC_scrubber_primary_array(x, 0)
+		ObjExcel.Cells(x + 2, 2).Value = INAC_scrubber_primary_array(x, 1)
+		ObjExcel.Cells(x + 2, 3).Value = INAC_scrubber_primary_array(x, 2)
 	End if
 	'Setting a default value for (x, 8)
 	INAC_scrubber_primary_array(x, 8) = TRUE
@@ -271,7 +273,7 @@ For x = 0 to total_cases
 	transmit
 	EMReadScreen claims_due, 10, 19, 58
 	INAC_scrubber_primary_array(x, 3) = claims_due
-	' If developer_mode = True then ObjExcel.Cells(x + 2, 4).Value = claims_due
+	If developer_mode = True then ObjExcel.Cells(x + 2, 4).Value = claims_due
 Next
 
 'Entering claims into the Word doc
@@ -304,7 +306,7 @@ For x = 0 to total_cases
 	Else
 		INAC_scrubber_primary_array(x, 4) = False
 	End if
-	' If developer_mode = True then ObjExcel.Cells(x + 2, 5).Value = INAC_scrubber_primary_array(x, 4)
+	If developer_mode = True then ObjExcel.Cells(x + 2, 5).Value = INAC_scrubber_primary_array(x, 4)
 	excel_row = excel_row + 1
 Next
 
@@ -358,8 +360,8 @@ For x = 0 to total_cases
 		End if
 	End if
 	If developer_mode = True then
-		' ObjExcel.Cells(x + 2, 8).Value = INAC_scrubber_primary_array(x, 7)		'Writes privileged status to Excel when developer_mode is on
-		' ObjExcel.Cells(x + 2, 7).Value = INAC_scrubber_primary_array(x, 6)		'Writes PMI array to Excel when developer_mode is on
+		ObjExcel.Cells(x + 2, 8).Value = INAC_scrubber_primary_array(x, 7)		'Writes privileged status to Excel when developer_mode is on
+		ObjExcel.Cells(x + 2, 7).Value = INAC_scrubber_primary_array(x, 6)		'Writes PMI array to Excel when developer_mode is on
 	End if
 	PMI_array = ""		'Clears the variable for the following loop
 Next
@@ -506,11 +508,11 @@ IF mmis_mode = TRUE THEN
 			End if
 		Next
 		If INAC_scrubber_primary_array(x, 5) <> True then INAC_scrubber_primary_array(x, 5) = False		'Sets this after the others, so that it doesn't refresh each loop.
-		' If developer_mode = True then
-		' 	FOR asdf = 0 TO 8
-		' 		objExcel.Cells(x + 2, asdf + 1).Value = INAC_scrubber_primary_array(x, asdf)		'Writes MMIS status to array when developer_mode is on
-		' 	NEXT
-		' END IF
+		If developer_mode = True then
+			FOR asdf = 0 TO 8
+				objExcel.Cells(x + 2, asdf + 1).Value = INAC_scrubber_primary_array(x, asdf)		'Writes MMIS status to array when developer_mode is on
+			NEXT
+		END IF
 	Next
 
 	'The following checks for which screen MAXIS is running on.
@@ -604,11 +606,11 @@ For x = 0 to total_cases
 	NEXT
 
 	'Reseting values in the Excel spreadsheet
-	' IF developer_mode = True THEN
-	' 	FOR asdf = 0 TO 8
-	' 		objExcel.Cells(x + 2, asdf + 1).Value = INAC_scrubber_primary_array(x, asdf)
-	' 	NEXT
-	' END IF
+	IF developer_mode = True THEN
+		FOR asdf = 0 TO 8
+			objExcel.Cells(x + 2, asdf + 1).Value = INAC_scrubber_primary_array(x, asdf)
+		NEXT
+	END IF
 
 	back_to_self
 
@@ -694,7 +696,7 @@ If CLS_x1_number = "" then
 			vbNewLine & _
 			"A Word document has been created, containing active claims as well as cases with ABPS panels requiring update. If you have questions about these procedures, see a supervisor." & vbNewLine & _
 			vbNewLine & _
-			"Please note that this script normally XFERs cases to a ''CLS'' account (such as x100CLS), which is used by many agencies to store closed cases. This makes certain functions simpler in an agency. Your agency has not configured such an account for script usage, so it will stop now. If you have additional questions, consult an alpha user."
+			"Please note that this script normally XFERs cases to a ''CLS'' account (such as x100CLS), which is used by many agencies to store closed cases. This makes certain functions simpler in an agency. Your agency has not configured such an account for script usage, so it will stop now. If you have additional questions, send an email to " & contact_admin
 	script_end_procedure("")
 End if
 
@@ -725,7 +727,7 @@ For x = 0 to total_cases
 
 		Else
 			Msgbox INAC_scrubber_primary_array(x, 0) & " transfered to " & CLS_x1_number    'leading a messagebox to show developer what case is being transferred and to where. This pause insures loop is operating correctly.
-		'	objExcel.Cells(x+2, 10).Value = "TRANSFERRED"
+			objExcel.Cells(x+2, 10).Value = "TRANSFERRED"
 		End if
 	End if
 Next
@@ -733,8 +735,8 @@ Next
 'Notifies the worker of the success
 MsgBox("Success!"  & vbNewLine & _
 		vbNewLine &_
-		"The cases that have HC open in MMIS, have unresolved IEVS, or have DAILs generated, are still in your REPT/INAC. Some of these cases may be discrepancies or may be MCRE or active IMA cases. Check each one of these manually in MMIS and CCOL/CLIC or process IEVS using TE0019.164 before sending to " & CLS_x1_number & "." & vbNewLine & _
+		"The cases that have HC open in MMIS, have unresolved IEVS, or have DAILs generated, are still in your REPT/INAC. Some of these cases may be discrepancies or may be MCRE or active IMA cases. Check each one of these manually in MMIS and CCOL/CLIC or process IEVS using TE0019.164." & vbNewLine & _
 		vbNewLine & _
-		"A Word document has been created, containing active claims as well as cases with ABPS panels requiring update. If you have questions about these procedures, see a supervisor.")
+		"A Word document has been created, containing active claims as well as cases with ABPS panels requiring update. If you have questions about these procedures, send an email to " & contact_admin)
 
 script_end_procedure("")
