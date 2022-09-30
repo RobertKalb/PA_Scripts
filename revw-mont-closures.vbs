@@ -39,7 +39,7 @@ Set objNet = CreateObject("WScript.NetWork")
 'Determines user to enable debugging features. Add individuals to this if...then to include them with developer mode.
 If ucase(objNet.UserName) = "PWVKC45" or _
   ucase(objNet.UserName) = "ILFE001" or _
-  ucase(objNet.UserName) = "RAKEWINS" or _
+  ucase(objNet.UserName) = "RAKALB" or _
   ucase(objNet.UserName) = "CDPOTTER" or _
   ucase(objNet.UserName) = "COURTRIGHTD" or _
   ucase(objNet.UserName) = "VKC" then
@@ -108,7 +108,7 @@ If revw_check = checked then
 		If cash_status = "N" or cash_status = "I" then are_programs_closing = True						'If "N" or "I", adds to the array
 		EMReadScreen FS_status, 1, row, 45																'Checks for FS status
 		If FS_status = "N" or FS_status = "I" then are_programs_closing = True							'If "N" or "I", adds to the array
-		EMReadScreen HC_status, 1, row, 49																'Checks for HC status
+		EMReadScreen HC_status, 1, row, 49																'Checks for FS status
 		If HC_status = "N" or HC_status = "I" then 														'If "N" or "I", checks additional info before adding to the array
 			EMReadScreen exempt_IR_check, 1, row, 51													'Checks for exempt IRs (starred IRs)
 			If exempt_IR_check <> "*" then are_programs_closing = True									'Only adds cases to array if they are not exempt from an IR
@@ -138,7 +138,7 @@ If revw_check = checked then
 			EMReadScreen cash_review_code, 1, 7, 40
 			EMReadScreen FS_review_code, 1, 7, 60
 			EMReadScreen HC_review_code, 1, 7, 73
-			If cash_review_code = "N" then cash_review_status = "closing for no renewal. Client can turn in a CAF, MNBenefits application, or a Household Update Form."
+			If cash_review_code = "N" then cash_review_status = "closing for no renewal CAF."
 			If cash_review_code = "I" then cash_review_status = "closing for incomplete review. See previous case notes for details on what's needed."
 			If FS_review_code = "N" then
 				EMWriteScreen "x", 5, 58
@@ -146,7 +146,7 @@ If revw_check = checked then
 				EMReadScreen recertification_date, 8, 9, 64
 				recertification_date = cdate(replace(recertification_date, " ", "/"))
 				If datepart("m", recertification_date) = datepart("m", dateadd("m", 1, now)) then
-					FS_review_document = "renewal. Client can turn in a CAF, MNBenefits application, or a Household Update Form."
+					FS_review_document = "renewal CAF"
 				Else
 					FS_review_document = "CSR"
 				End if
@@ -203,7 +203,7 @@ If revw_check = checked then
 				first_of_working_month = cdate(replace(first_of_working_month, " ", "/01/"))	'Added "/01/" to make it a date
 
 			If HC_review_status <> "" then	'Added additional logic as currently MAGI clients get an additonal 4 months to turn in renewal paperwork.
-				last_day_to_turn_in_HC_docs = dateadd("d", -1, (dateadd("m", 4, first_of_working_month)))
+				last_day_to_turn_in_HC_docs = dateadd("d", -1, (dateadd("m", 5, first_of_working_month)))
 				HC_intake_date = dateadd("d", 1, last_day_to_turn_in_HC_docs)
 			End If
 				If FS_review_status <> "" then
